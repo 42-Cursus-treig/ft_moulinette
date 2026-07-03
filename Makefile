@@ -4,7 +4,7 @@ DATA_DIR	= /home/kyfontan/data
 
 all: up
 
-up: setup
+up:
 	docker compose -f Docker/docker-compose.yml up
 
 down:
@@ -16,7 +16,7 @@ check:
 clean-down:
 	docker compose -f Docker/docker-compose.yml down -v
 
-clean: down
+clean: clean-down
 	docker image prune -a -f
 
 clean-all: clean

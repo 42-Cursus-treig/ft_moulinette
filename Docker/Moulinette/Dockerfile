@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 RUN useradd -m -d /home/ftpuser -s /usr/sbin/nologin ftpuser && \
-    echo "ftpuser:motdepasse123" | chpasswd
+    echo "ftpuser:ft_moulinette4242" | chpasswd && \
+    echo "/usr/sbin/nologin" >> /etc/shells
 
 RUN mkdir -p /home/ftpuser/ftp/upload && \
     chown -R ftpuser:ftpuser /home/ftpuser/ftp && \

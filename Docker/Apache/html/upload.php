@@ -1,29 +1,17 @@
 <?php
-$targetDir = "/tmp/uploads/";
+header('Content-Type: application/json');
 
-$ftp_server = "ftp-server"; // nom du service docker-compose
-$ftp_user   = "ftpuser";
-$ftp_pass   = "motdepasse123";
+$conn = ftp_connect("ftp-server");
+ftp_login($conn, "ftpuser", "ft_moulinette4242");
+ftp_pasv($conn, true);
 
-$conn = ftp_connect($ftp_server);
-if (!$conn) {
-    die("Connexion FTP impossible.");
-}
-ftp_login($conn, $ftp_user, $ftp_pass);
-ftp_pasv($conn, true); // mode passif recommandé entre conteneurs
+$results = [];
 
 foreach ($_FILES['fichiers']['tmp_name'] as $i => $tmpName) {
     $fileName = basename($_FILES['fichiers']['name'][$i]);
-    $targetFile = $targetDir . $fileName;
-
-    if (move_uploaded_file($tmpName, $targetFile)) {
-        if (ftp_put($conn, "upload/" . $fileName, $targetFile, FTP_BINARY)) {
-            echo "$fileName envoyé avec succès.<br>";
-            unlink($targetFile); // nettoyage de l'espace temporaire
-        } else {
-            echo "Erreur d'envoi FTP pour $fileName.<br>";
-        }
-    }
+    $ok = ftp_put($conn, "upload/" . $fileName, $tmpName, FTP_BINARY);
+    $results[] = ["name" => $fileName, "success" => $ok];
 }
 
 ftp_close($conn);
+echo json_encode(["results" => $results]);
