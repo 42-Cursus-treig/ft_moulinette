@@ -10,6 +10,7 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/models"
+	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
 )
 
@@ -22,6 +23,7 @@ type handlers struct {
 	serverBootID string
 	locks        *locks.Store
 	adminLogins  map[string]bool
+	pool         *pool.Service
 }
 
 func (h *handlers) isAdmin(user auth.User) bool {

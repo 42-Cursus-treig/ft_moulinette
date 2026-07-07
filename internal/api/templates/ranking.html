@@ -1,10 +1,10 @@
-{{define "history"}}
+{{define "ranking"}}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ft_moulinette — historique</title>
+<title>ft_moulinette — classement</title>
 <script>
   (function () {
     var stored = localStorage.getItem('ft-moulinette-theme');
@@ -15,24 +15,16 @@
 <link rel="stylesheet" href="/static/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
+<script src="/static/ranking.js" defer></script>
+<script src="/static/ranking_chart.js" defer></script>
 </head>
 <body>
   <header>
-    <h1>Historique</h1>
+    <h1>Classement</h1>
     <div class="header-actions">
       <a href="/" class="theme-toggle" aria-label="Retour à l'accueil" title="Retour à l'accueil">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M19 12H5M12 19l-7-7 7-7"></path>
-        </svg>
-      </a>
-      <a href="/classement" class="theme-toggle" aria-label="Classement" title="Classement">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
-          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
-          <path d="M4 22h16"></path>
-          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
-          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
-          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
         </svg>
       </a>
       <span class="user-badge">{{.User.Login}}</span>
@@ -47,12 +39,26 @@
 
   <div id="error-banner"></div>
 
-  <div id="jobs-list">
-    {{if not .Jobs}}
-    <p class="empty-state">Aucun test n'a encore été lancé. Les corrections que vous soumettez apparaîtront ici.</p>
-    {{else}}
-    {{range .Jobs}}{{template "job_row" .}}{{end}}
-    {{end}}
+  <div class="ranking-controls" id="ranking-controls">
+    <div class="rank-tabs" role="tablist" aria-label="Type de classement">
+      <button type="button" class="rank-tab active" data-tab="score" role="tab" aria-selected="true">Score</button>
+      <button type="button" class="rank-tab" data-tab="projects" role="tab" aria-selected="false">Projets</button>
+      <button type="button" class="rank-tab" data-tab="exam" role="tab" aria-selected="false">Exam</button>
+      <button type="button" class="rank-tab" data-tab="progress" role="tab" aria-selected="false">Progression</button>
+    </div>
+
+    <div class="exam-picker" id="exam-picker" hidden>
+      {{range .Exams}}
+      <button type="button" class="exam-pill{{if eq .Value "00"}} active{{end}}" data-exam="{{.Value}}">{{.Label}}</button>
+      {{end}}
+    </div>
+  </div>
+
+  <div id="ranking-content">
+    <div class="ranking-state brutal-card">
+      <span class="spinner"></span>
+      <p>Chargement du classement…</p>
+    </div>
   </div>
 </body>
 </html>

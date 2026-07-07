@@ -2,12 +2,29 @@ package api
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 )
 
 //go:embed templates/*.html
 var templateFS embed.FS
 
+var templateFuncs = template.FuncMap{
+	// medal renvoie la médaille du podium ou le rang (#04, #05, …).
+	"medal": func(i int) string {
+		switch i {
+		case 0:
+			return "🥇"
+		case 1:
+			return "🥈"
+		case 2:
+			return "🥉"
+		default:
+			return fmt.Sprintf("#%02d", i+1)
+		}
+	},
+}
+
 func loadTemplates() (*template.Template, error) {
-	return template.ParseFS(templateFS, "templates/*.html")
+	return template.New("").Funcs(templateFuncs).ParseFS(templateFS, "templates/*.html")
 }

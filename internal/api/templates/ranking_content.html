@@ -1,0 +1,162 @@
+{{define "ranking_content"}}
+{{if eq .State "loading"}}
+<div class="ranking-state brutal-card"
+     hx-get="{{.SelfURL}}" hx-trigger="load delay:3s" hx-target="#ranking-content" hx-swap="innerHTML">
+  <span class="spinner"></span>
+  <p>Récupération des données de la piscine {{.MonthLabel}} {{.Year}}…</p>
+  <p class="hint">Première charge : cela peut prendre un moment (rate limit API 42).</p>
+</div>
+
+{{else if eq .State "unavailable"}}
+<!-- 43200s = 12h : hors piscine, inutile de re-vérifier plus souvent
+     (un simple rechargement de page re-vérifie de toute façon). -->
+<div class="ranking-state ranking-unavailable brutal-card"
+     hx-get="{{.SelfURL}}" hx-trigger="load delay:43200s" hx-target="#ranking-content" hx-swap="innerHTML">
+  <p class="ranking-unavailable-title">Unavailable</p>
+  <p>Aucune piscine en cours sur le campus pour le moment.</p>
+  <p class="hint">Le classement s'activera automatiquement au début de la prochaine piscine.</p>
+</div>
+
+{{else if eq .State "error"}}
+<div class="ranking-state ranking-error brutal-card"
+     hx-get="{{.SelfURL}}" hx-trigger="load delay:30s" hx-target="#ranking-content" hx-swap="innerHTML">
+  <p class="ranking-error-title">Erreur</p>
+  <p>{{.Err}}</p>
+  <p class="hint">Nouvelle tentative automatique dans 30 secondes…</p>
+</div>
+
+{{else}}
+<div class="ranking-board"
+     hx-get="{{.SelfURL}}" hx-trigger="every {{.RefreshSec}}s" hx-target="#ranking-content" hx-swap="innerHTML">
+  <div class="ranking-meta">
+    <span class="ranking-title">
+      {{if eq .Tab "score"}}🏆 Score coalition
+      {{else if eq .Tab "projects"}}📦 Projets validés
+      {{else if eq .Tab "progress"}}📈 Progression
+      {{else}}🏁 {{.ExamLabel}}{{end}}
+      — Piscine {{.MonthLabel}} {{.Year}}
+    </span>
+    <span class="ranking-updated" title="Actualisation automatique toutes les {{.RefreshSec}} secondes">
+      MàJ {{.UpdatedAt.Format "15:04:05"}}
+    </span>
+  </div>
+
+  {{if eq .Tab "score"}}
+  {{if .Coalitions}}
+  <div class="coal-pills">
+    {{$any := false}}{{range .Coalitions}}{{if .Active}}{{$any = true}}{{end}}{{end}}
+    <button type="button" class="coal-pill{{if not $any}} active{{end}}"
+            hx-get="/ui/classement?tab=score" hx-target="#ranking-content" hx-swap="innerHTML">Toutes</button>
+    {{range .Coalitions}}
+    <button type="button" class="coal-pill{{if .Active}} active{{end}}"
+            hx-get="{{.URL}}" hx-target="#ranking-content" hx-swap="innerHTML">
+      <span class="coal-dot"{{if .Color}} style="background: {{.Color}}"{{end}}></span>{{.Name}}
+    </button>
+    {{end}}
+  </div>
+  {{end}}
+  {{if not .ScoreRows}}
+  <p class="empty-state">Aucun score de coalition pour le moment.</p>
+  {{else}}
+  <table class="ranking-table brutal-card">
+    <thead>
+      <tr><th>#</th><th>Login</th><th>Coalition</th><th class="num">Score</th><th class="num">Niveau</th></tr>
+    </thead>
+    <tbody>
+      {{range $i, $r := .ScoreRows}}
+      <tr{{if lt $i 3}} class="podium"{{end}}>
+        <td class="rank">{{medal $i}}</td>
+        <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
+        <td><span class="coal-dot"{{if $r.Color}} style="background: {{$r.Color}}"{{end}}></span>{{$r.Coalition}}</td>
+        <td class="num">{{$r.Score}} pts</td>
+        <td class="num">{{printf "%.2f" $r.Level}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+
+  {{else if eq .Tab "projects"}}
+  {{if not .ProjectRows}}
+  <p class="empty-state">Aucun piscineux trouvé pour le moment.</p>
+  {{else}}
+  <table class="ranking-table brutal-card">
+    <thead>
+      <tr><th>#</th><th>Login</th><th class="num">Total</th><th class="num">🐚 Shell</th><th class="num">💻 C</th><th class="num">📝 Exam</th><th class="num">🚀 Rush</th><th class="num">Niveau</th></tr>
+    </thead>
+    <tbody>
+      {{range $i, $r := .ProjectRows}}
+      <tr{{if lt $i 3}} class="podium"{{end}}>
+        <td class="rank">{{medal $i}}</td>
+        <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
+        <td class="num total">{{$r.Total}}</td>
+        <td class="num">{{$r.Shell}}</td>
+        <td class="num">{{$r.C}}</td>
+        <td class="num">{{$r.Exam}}</td>
+        <td class="num">{{$r.Rush}}</td>
+        <td class="num">{{printf "%.2f" $r.Level}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+
+  {{else if eq .Tab "progress"}}
+  {{if not .Charts}}
+  <p class="empty-state">Aucun relevé de progression pour le moment — le premier sera pris automatiquement aujourd'hui.</p>
+  {{else}}
+  {{range $c := .Charts}}
+  <div class="chart-card brutal-card" data-chart="{{$c.DataJSON}}">
+    <p class="chart-title">{{$c.Title}}</p>
+    <div class="chart-plot">
+      <svg class="progress-chart" viewBox="0 0 700 280" role="img" aria-label="{{$c.Title}}">
+        {{range $t := $c.YTicks}}
+        <line class="chart-grid" x1="{{$c.PlotX}}" y1="{{$t.Y}}" x2="{{$c.PlotX2}}" y2="{{$t.Y}}"></line>
+        <text class="chart-label" x="{{$c.YLabelX}}" y="{{$t.Y}}" text-anchor="end" dominant-baseline="middle">{{$t.Label}}</text>
+        {{end}}
+        {{range $t := $c.XTicks}}
+        <text class="chart-label" x="{{$t.X}}" y="{{$c.XLabelY}}" text-anchor="middle">{{$t.Label}}</text>
+        {{end}}
+        <line class="chart-cursor" data-cursor style="display:none"></line>
+        {{range $si, $s := $c.Series}}
+        {{if $s.Polyline}}<polyline class="chart-line" data-series="{{$si}}" stroke="{{$s.Color}}" points="{{$s.Polyline}}"></polyline>{{end}}
+        {{range $d := $s.Dots}}<circle class="chart-dot" data-series="{{$si}}" fill="{{$s.Color}}" cx="{{$d.X}}" cy="{{$d.Y}}" r="4"></circle>{{end}}
+        {{end}}
+        <g data-highlight></g>
+      </svg>
+      <div class="chart-tooltip" data-tooltip hidden></div>
+    </div>
+    <div class="chart-legend">
+      {{range $si, $s := $c.Series}}
+      <button type="button" class="legend-item" data-series="{{$si}}"><span class="legend-swatch" style="background: {{$s.Color}}"></span>{{$s.Label}}</button>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  <p class="hint chart-note">{{.SnapshotCount}} relevé{{if gt .SnapshotCount 1}}s{{end}} · un par jour pendant la piscine.</p>
+  {{end}}
+
+  {{else}}
+  {{if not .ExamRows}}
+  <p class="empty-state">Aucun piscineux inscrit à cet exam pour le moment.</p>
+  {{else}}
+  <table class="ranking-table brutal-card">
+    <thead>
+      <tr><th>#</th><th>Login</th><th class="num">Note</th><th>Statut</th></tr>
+    </thead>
+    <tbody>
+      {{range $i, $r := .ExamRows}}
+      <tr{{if lt $i 3}} class="podium"{{end}}>
+        <td class="rank">{{medal $i}}</td>
+        <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
+        <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}—{{end}}</td>
+        <td>{{if eq $r.Status "in_progress"}}🏃 En cours{{else if $r.Validated}}✅ Validé{{else if $r.HasMark}}❌ Échoué{{else}}—{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+  {{end}}
+</div>
+{{end}}
+{{end}}

@@ -12,6 +12,7 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
 	"github.com/tristan-reig/ft-moulinette/internal/history"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
+	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
 	"github.com/tristan-reig/ft-moulinette/internal/sandbox"
 )
@@ -67,6 +68,23 @@ func main() {
 	}
 	sessions := auth.NewStore()
 
+	// Classements de piscine : mêmes credentials 42 que l'OAuth, en flux
+	// client_credentials. Campus configurable via MOULINETTE_CAMPUS_NAME.
+	campusName := os.Getenv("MOULINETTE_CAMPUS_NAME")
+	if campusName == "" {
+		campusName = "Perpignan"
+	}
+	rankingCache := os.Getenv("MOULINETTE_RANKING_CACHE")
+	if rankingCache == "" {
+		rankingCache = "data/ranking_cache.json"
+	}
+	rankingHistory := os.Getenv("MOULINETTE_RANKING_HISTORY")
+	if rankingHistory == "" {
+		rankingHistory = "data/ranking_history.json"
+	}
+	poolSvc := pool.NewService(clientID, clientSecret, campusName, rankingCache, rankingHistory)
+	poolSvc.StartDailySnapshots()
+
 	hist, err := history.New(historyDir)
 	if err != nil {
 		log.Fatal("initialisation de l'historique: ", err)
@@ -90,7 +108,7 @@ func main() {
 	// (visibles seulement sur /history).
 	serverBootID := fmt.Sprintf("%d", time.Now().UnixNano())
 
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolSvc)
 	if err != nil {
 		log.Fatal(err)
 	}
