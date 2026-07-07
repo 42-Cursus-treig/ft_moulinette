@@ -1,0 +1,99 @@
+{{define "index"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem('ft-moulinette-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>ft_moulinette</h1>
+    <div class="header-actions">
+      {{if .IsAdmin}}
+      <a href="/admin" class="theme-toggle" aria-label="Administration" title="Administration">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </a>
+      {{end}}
+      <a href="/history" class="theme-toggle" aria-label="Historique" title="Historique">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path>
+          <path d="M12 7v5l3 3"></path>
+        </svg>
+      </a>
+      <span class="user-badge">{{.User.Login}}</span>
+      <form method="post" action="/auth/logout">
+        <button type="submit" class="theme-toggle" title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
+      </form>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
+        <img id="theme-icon" src="/static/moon.svg" alt="" width="20" height="20">
+      </button>
+    </div>
+  </header>
+
+  <div id="error-banner"></div>
+
+  <form hx-post="/ui/jobs" hx-target="#jobs-list" hx-swap="afterbegin" hx-encoding="multipart/form-data" hx-indicator="#submit-indicator">
+    <div class="exercise-grid">
+      <input type="hidden" id="exercise-value" name="exercise" value="">
+      {{range .Exercises}}
+      {{if .Locked}}
+      <button type="button" class="exercise-btn locked" disabled title="Sujet verrouillé">
+        {{.Label}}
+        <svg class="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+      </button>
+      {{else}}
+      <button type="button" class="exercise-btn" data-value="{{.ID}}">{{.Label}}</button>
+      {{end}}
+      {{end}}
+    </div>
+
+    <div class="source-tabs" role="tablist">
+      <button type="button" class="source-tab active" data-target="archive" role="tab" aria-selected="true">Archive</button>
+      <button type="button" class="source-tab" data-target="git" role="tab" aria-selected="false">
+        Lien Git<span class="badge-soon">Bientôt</span>
+      </button>
+    </div>
+
+    <div class="source-panel" data-panel="archive">
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="archive-input" name="archive" accept=".zip,.tar.gz,.tgz,.rar" required hidden>
+        <span id="dropzone-label">Dépose ton archive ici (.zip, .tar.gz, .rar)</span>
+      </div>
+    </div>
+
+    <div class="source-panel" data-panel="git" hidden>
+      <input type="text" name="repo_url" class="git-input" placeholder="git@vogsphere.42xxx.fr:vogsphere/intra-uuid-..." disabled>
+      <p class="hint">Bientôt disponible — utilise l'upload d'archive pour l'instant.</p>
+    </div>
+
+    <div class="form-row">
+      <button type="submit" id="submit-button">
+        Corriger
+        <span id="submit-indicator" class="htmx-indicator spinner"></span>
+      </button>
+    </div>
+  </form>
+
+  <div id="jobs-list">
+    {{range .Jobs}}{{template "job_row" .}}{{end}}
+  </div>
+</body>
+</html>
+{{end}}

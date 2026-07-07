@@ -1,0 +1,63 @@
+{{define "admin"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette — administration</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem('ft-moulinette-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Administration</h1>
+    <div class="header-actions">
+      <a href="/" class="theme-toggle" aria-label="Retour à l'accueil" title="Retour à l'accueil">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"></path>
+        </svg>
+      </a>
+      <span class="user-badge">{{.User.Login}}</span>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
+        <img id="theme-icon" src="/static/moon.svg" alt="" width="20" height="20">
+      </button>
+    </div>
+  </header>
+
+  <div class="admin-list">
+    {{range .Exercises}}
+    <div class="admin-row">
+      <span class="admin-row-label">{{.Label}} <span class="admin-row-id">({{.ID}})</span></span>
+      {{if .Locked}}
+      <form method="post" action="/admin/unlock">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <button type="submit" class="admin-btn unlock">Déverrouiller</button>
+      </form>
+      {{else}}
+      <form method="post" action="/admin/lock">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <input type="hidden" name="label" value="{{.Label}}">
+        <button type="submit" class="admin-btn lock">Verrouiller</button>
+      </form>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <h2 class="admin-subtitle">Verrouiller un sujet pas encore ajouté</h2>
+  <form method="post" action="/admin/lock" class="admin-new-form">
+    <input type="text" name="id" placeholder="id (ex: c02)" required>
+    <input type="text" name="label" placeholder="libellé affiché (ex: C02)" required>
+    <button type="submit" class="admin-btn lock">Verrouiller</button>
+  </form>
+</body>
+</html>
+{{end}}

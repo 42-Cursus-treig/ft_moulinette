@@ -1,0 +1,15 @@
+# Secrets
+.env
+
+# Données de l'historique
+/data/
+
+# Binaires Go
+/ft-moulinette
+/server
+*.exe
+
+# Fichiers temporaires d'éditeur/OS
+.DS_Store
+*.swp
+.vscode

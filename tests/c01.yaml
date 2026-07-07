@@ -1,0 +1,220 @@
+project: c01
+display_name: C01
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 10
+- 20
+- 30
+- 40
+- 50
+- 60
+- 70
+- 90
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_ft.c
+  harness: harness/c01/ex00.c
+  allowed_functions: []
+  tests:
+  - name: valeur_42
+    args: []
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: ft_ultimate_ft.c
+  harness: harness/c01/ex01.c
+  allowed_functions: []
+  tests:
+  - name: valeur_42_neuf_niveaux
+    args: []
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: ft_swap.c
+  harness: harness/c01/ex02.c
+  allowed_functions: []
+  tests:
+  - name: positifs
+    args:
+    - '5'
+    - '12'
+    stdin: ''
+    expected_stdout: 12 5
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_negatif
+    args:
+    - '-3'
+    - '8'
+    stdin: ''
+    expected_stdout: 8 -3
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex03
+  dir: ex03
+  source_file: ft_div_mod.c
+  harness: harness/c01/ex03.c
+  allowed_functions: []
+  tests:
+  - name: positifs
+    args:
+    - '17'
+    - '5'
+    stdin: ''
+    expected_stdout: 3 2
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: dividende_negatif
+    args:
+    - '-17'
+    - '5'
+    stdin: ''
+    expected_stdout: -3 -2
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex04
+  dir: ex04
+  source_file: ft_ultimate_div_mod.c
+  harness: harness/c01/ex04.c
+  allowed_functions: []
+  tests:
+  - name: positifs
+    args:
+    - '17'
+    - '5'
+    stdin: ''
+    expected_stdout: 3 2
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: dividende_negatif
+    args:
+    - '-17'
+    - '5'
+    stdin: ''
+    expected_stdout: -3 -2
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex05
+  dir: ex05
+  source_file: ft_putstr.c
+  harness: harness/c01/ex05.c
+  allowed_functions:
+  - write
+  tests:
+  - name: mot_simple
+    args:
+    - Hello
+    stdin: ''
+    expected_stdout: Hello
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_underscore
+    args:
+    - ft_moulinette
+    stdin: ''
+    expected_stdout: ft_moulinette
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex06
+  dir: ex06
+  source_file: ft_strlen.c
+  harness: harness/c01/ex06.c
+  allowed_functions: []
+  tests:
+  - name: deux_chiffres
+    args:
+    - '42'
+    stdin: ''
+    expected_stdout: '2'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_espace
+    args:
+    - Hello world
+    stdin: ''
+    expected_stdout: '11'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex07
+  dir: ex07
+  source_file: ft_rev_int_tab.c
+  harness: harness/c01/ex07.c
+  allowed_functions: []
+  tests:
+  - name: cinq_elements
+    args:
+    - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    stdin: ''
+    expected_stdout: 5 4 3 2 1
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: un_seul_element
+    args:
+    - '42'
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: tableau_vide
+    args: []
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex08
+  dir: ex08
+  source_file: ft_sort_int_tab.c
+  harness: harness/c01/ex08.c
+  allowed_functions: []
+  tests:
+  - name: desordre
+    args:
+    - '5'
+    - '3'
+    - '4'
+    - '1'
+    - '2'
+    stdin: ''
+    expected_stdout: 1 2 3 4 5
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_negatifs
+    args:
+    - '3'
+    - '-1'
+    - '2'
+    - '-5'
+    stdin: ''
+    expected_stdout: -5 -1 2 3
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: doublons
+    args:
+    - '4'
+    - '2'
+    - '4'
+    - '1'
+    stdin: ''
+    expected_stdout: 1 2 4 4
+    expected_exit_code: 0
+    timeout_sec: 5
