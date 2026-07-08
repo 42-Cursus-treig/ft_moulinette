@@ -2,12 +2,12 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/tristan-reig/ft-moulinette/internal/visibility"
 )
 
-// requireAdmin protège les routes du panneau d'administration : nécessite
-// une session valide ET un login présent dans la liste des admins. Renvoie
-// 404 (pas 403) pour ne pas révéler l'existence de la page à qui n'y a pas
-// accès.
+// requireAdmin exige une session valide ET un login admin. Renvoie 404
+// pour ne pas révéler l'existence de la page.
 func (h *handlers) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return h.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		user, _ := userFromContext(r.Context())
@@ -19,9 +19,6 @@ func (h *handlers) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-// GET /admin : liste tous les sujets (réels + verrouillés sans YAML), avec
-// un bouton verrouiller/déverrouiller sur chacun, et un formulaire pour en
-// verrouiller un nouveau qui n'a pas encore de fichier de tests.
 func (h *handlers) adminPage(w http.ResponseWriter, r *http.Request) {
 	user, _ := userFromContext(r.Context())
 
@@ -32,17 +29,34 @@ func (h *handlers) adminPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Exercises":            tiles,
-		"User":                 user,
-		"PoolRequestsLastHour": h.pool.RequestsLastHour(),
+		"Exercises":  tiles,
+		"User":       user,
+		"Sections":   visibility.Sections,
+		"Visibility": h.visibility.All(),
 	}
 	if err := h.tmpl.ExecuteTemplate(w, "admin", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-// POST /admin/lock : verrouille un sujet, qu'il ait déjà un fichier YAML
-// ou non (label utilisé uniquement dans ce second cas).
+// adminVisibility (POST /admin/visibility) active ou masque une section pour
+// les membres non-admins.
+func (h *handlers) adminVisibility(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "formulaire invalide", http.StatusBadRequest)
+		return
+	}
+	section := r.FormValue("section")
+	visible := r.FormValue("visible") == "true"
+	if err := h.visibility.Set(section, visible); err != nil {
+		http.Error(w, "réglage de visibilité échoué: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/admin", http.StatusFound)
+}
+
+// adminLock (POST /admin/lock) verrouille un sujet, qu'il ait déjà un YAML ou
+// non
 func (h *handlers) adminLock(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "formulaire invalide", http.StatusBadRequest)
@@ -64,7 +78,6 @@ func (h *handlers) adminLock(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin", http.StatusFound)
 }
 
-// POST /admin/unlock : déverrouille un sujet.
 func (h *handlers) adminUnlock(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "formulaire invalide", http.StatusBadRequest)

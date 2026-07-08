@@ -13,7 +13,7 @@ import (
 )
 
 // syncBuffer protège le buffer par mutex : en cas de timeout on lit la sortie
-// pendant qu'une goroutine d'os/exec peut encore y écrire - un bytes.Buffer nu
+// pendant qu'une goroutine d'os/exec peut encore y écrire — un bytes.Buffer nu
 // serait une data race.
 type syncBuffer struct {
 	mu  sync.Mutex

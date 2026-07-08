@@ -152,22 +152,6 @@ form { margin-bottom: 3rem; }
 .exercise-btn.locked:hover { transform: none; box-shadow: 3px 3px 0px var(--border); }
 .exercise-btn .lock-icon { width: 14px; height: 14px; margin-left: 0.4rem; vertical-align: -2px; }
 
-.admin-quota {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.9rem 1.1rem;
-  margin-bottom: 1.5rem;
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 700;
-}
-.admin-quota-label { text-transform: uppercase; font-size: 0.85rem; color: var(--text-muted); }
-.admin-quota-value { font-size: 1.1rem; }
-.admin-quota.quota-warn { border-color: var(--pending); box-shadow: 5px 5px 0px var(--pending); }
-.admin-quota.quota-warn .admin-quota-value { color: var(--pending); }
-.admin-quota.quota-danger { border-color: var(--fail); box-shadow: 5px 5px 0px var(--fail); }
-.admin-quota.quota-danger .admin-quota-value { color: var(--fail); }
-
 .admin-list { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 2.5rem; }
 .admin-row {
   display: flex;
@@ -194,6 +178,16 @@ form { margin-bottom: 3rem; }
 .admin-btn.lock { background: var(--fail-bg); color: var(--fail); }
 .admin-btn.unlock { background: var(--pass-bg); color: var(--pass); }
 .admin-subtitle { font-size: 1.1rem; margin-bottom: 1rem; }
+.admin-hint { text-transform: none; margin-top: -0.6rem; margin-bottom: 1rem; }
+.vis-badge {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  border: 2px solid var(--border);
+  text-transform: uppercase;
+}
+.vis-badge.on { background: var(--pass-bg); color: var(--pass); }
+.vis-badge.off { background: var(--fail-bg); color: var(--fail); }
 .admin-new-form { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .admin-new-form input[type="text"] {
   padding: 0.6rem 0.8rem;
@@ -478,6 +472,26 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
 }
 .exam-pill:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0px var(--border); }
 .exam-pill.active { background: var(--pending-bg); color: var(--pending); box-shadow: 3px 3px 0px var(--border); }
+
+.exam-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.2rem;
+  padding: 0.7rem 1rem;
+  margin-bottom: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.exam-sched-item { white-space: nowrap; }
+.exam-schedule.active { background: var(--pending-bg); color: var(--pending); }
+.exam-sched-live {
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.exam-schedule-empty { color: var(--text-muted); font-weight: 500; }
 
 .ranking-state {
   padding: 2.5rem 2rem;

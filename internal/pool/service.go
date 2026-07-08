@@ -15,19 +15,19 @@ import (
 // poolCursusID est le cursus "C Piscine" côté API 42.
 const poolCursusID = 9
 
-// TTL des caches : mêmes ordres de grandeur que le bot Discord
-// (boards toutes les 10 min, exams toutes les 60 s), sauf le roster.
+// TTL des caches. Les boards (score/projets) se rafraîchissent toutes les
+// 10 min. Les exams sont particuliers : hors de leur fenêtre planifiée on
+// lève le pied (examIdleTTL) pour épargner l'API, et on n'accélère
+// (examLiveTTL) que pendant l'exam. examSchedTTL est le TTL de l'horaire
+// des exams (begin_at/end_at) récupéré depuis l'API 42.
 const (
-	// rosterTTL est volontairement long : le roster d'une session (mois +
-	// année) ne change pas en cours de piscine, et sa récupération est
-	// coûteuse (cursus_users n'a pas de filtre par session, donc l'API
-	// pagine tout l'historique du campus avant qu'on filtre côté client).
-	// Le reservir 10 min ne fait que gaspiller des requêtes pour rien.
-	rosterTTL   = 6 * time.Hour
-	scoreTTL    = 10 * time.Minute
-	projectsTTL = 15 * time.Minute
-	examTTL     = 60 * time.Second
-	errRetry    = 45 * time.Second // délai avant de retenter après un échec
+	rosterTTL    = 10 * time.Minute
+	scoreTTL     = 10 * time.Minute
+	projectsTTL  = 10 * time.Minute
+	examLiveTTL  = 100 * time.Second // exam en cours : classement quasi live
+	examIdleTTL  = time.Hour         // hors fenêtre d'exam : on lève le pied
+	examSchedTTL = time.Hour         // horaire des exams (begin_at/end_at)
+	errRetry     = 45 * time.Second  // délai avant de retenter après un échec
 )
 
 // ExamSlugs relie les clés d'exam de l'UI aux slugs de projets intra.
@@ -110,20 +110,18 @@ type entry[T any] struct {
 	errAt    time.Time
 }
 
+// examWindow est la fenêtre planifiée d'un exam telle que renvoyée par
+// l'API 42 (/v2/exams : begin_at / end_at).
+type examWindow struct {
+	Begin, End time.Time
+}
+
 // session regroupe les caches d'une piscine (mois + année).
 type session struct {
 	roster   entry[[]Pooler]
 	score    entry[[]ScoreRow]
 	projects entry[[]ProjectRow]
 	exams    map[string]*entry[[]ExamRow]
-}
-
-// cursusProjectInfo est un projet du cursus piscine (id + slug). La liste
-// des sujets ne change pas en cours de piscine : mise en cache indéfiniment,
-// comme campusID/coalitions/projectIDs.
-type cursusProjectInfo struct {
-	ID   int
-	Slug string
 }
 
 // Service expose les classements de piscine au reste du serveur, avec cache
@@ -134,12 +132,15 @@ type Service struct {
 	cachePath  string
 	history    *historyStore
 
-	mu             sync.Mutex
-	campusID       int
-	coalitions     []coalitionJSON
-	projectIDs     map[string]int
-	cursusProjects []cursusProjectInfo
-	sessions       map[string]*session
+	mu         sync.Mutex
+	campusID   int
+	coalitions []coalitionJSON
+	projectIDs map[string]int
+	sessions   map[string]*session
+
+	// examSched : horaire des exams du campus (slug -> fenêtre), rafraîchi en
+	// arrière-plan comme les autres caches. Non persisté (bon marché à refaire).
+	examSched entry[map[string]examWindow]
 }
 
 // NewService construit le service ; id/secret sont les credentials OAuth de
@@ -157,13 +158,6 @@ func NewService(clientID, clientSecret, campusName, cachePath, historyPath strin
 	}
 	s.loadCache()
 	return s
-}
-
-// RequestsLastHour renvoie le nombre de requêtes envoyées à l'API 42 dans
-// la dernière heure glissante — pour vérifier de visu que le quota
-// (1200 req/h) est respecté, typiquement affiché sur /admin.
-func (s *Service) RequestsLastHour() int {
-	return s.c.RequestsLastHour()
 }
 
 // CurrentSession renvoie la piscine en cours (les piscines ont lieu en
@@ -304,9 +298,71 @@ func (s *Service) Exam(month, year, examKey string) ([]ExamRow, Status) {
 		e = &entry[[]ExamRow]{}
 		sess.exams[examKey] = e
 	}
-	return sectionLocked(s, month, year, e, examTTL, func(roster []Pooler) ([]ExamRow, error) {
+	return sectionLocked(s, month, year, e, s.examTTLLocked(examKey), func(roster []Pooler) ([]ExamRow, error) {
 		return s.fetchExam(slug, roster)
 	})
+}
+
+// ExamRefresh renvoie le pas de rafraîchissement recommandé pour l'onglet d'un
+// exam : court (examLiveTTL) quand l'exam est dans sa fenêtre planifiée, long
+// (examIdleTTL) sinon. Le front l'utilise pour son propre rythme de polling,
+// aligné sur le TTL du cache pour ne pas solliciter l'API pour rien.
+func (s *Service) ExamRefresh(examKey string) time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.examTTLLocked(examKey)
+}
+
+// ExamWindow renvoie la fenêtre planifiée (début, fin) d'un exam d'après
+// l'horaire intra, si elle est connue. Résout (et rafraîchit en arrière-plan)
+// le cache d'horaire, comme examActiveLocked.
+func (s *Service) ExamWindow(examKey string) (begin, end time.Time, ok bool) {
+	slug, exists := ExamSlugs[examKey]
+	if !exists {
+		return time.Time{}, time.Time{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	windows, status := resolveLocked(s, &s.examSched, examSchedTTL, s.fetchExamSchedule)
+	if status.State != StateReady {
+		return time.Time{}, time.Time{}, false
+	}
+	w, exists := windows[slug]
+	if !exists {
+		return time.Time{}, time.Time{}, false
+	}
+	return w.Begin, w.End, true
+}
+
+// examTTLLocked choisit le TTL de l'exam selon qu'il est en cours ou non.
+// s.mu doit être tenu.
+func (s *Service) examTTLLocked(examKey string) time.Duration {
+	if s.examActiveLocked(examKey) {
+		return examLiveTTL
+	}
+	return examIdleTTL
+}
+
+// examActiveLocked indique si l'exam est actuellement dans sa fenêtre planifiée
+// d'après l'horaire intra. Il résout (et rafraîchit en arrière-plan) le cache
+// d'horaire ; tant que l'horaire est inconnu on répond false, donc on reste sur
+// le rythme lent — quitte à basculer en rapide dès que l'horaire est chargé.
+// s.mu doit être tenu.
+func (s *Service) examActiveLocked(examKey string) bool {
+	slug, ok := ExamSlugs[examKey]
+	if !ok {
+		return false
+	}
+	windows, status := resolveLocked(s, &s.examSched, examSchedTTL, s.fetchExamSchedule)
+	if status.State != StateReady {
+		return false
+	}
+	w, ok := windows[slug]
+	if !ok {
+		return false
+	}
+	now := time.Now()
+	return !now.Before(w.Begin) && !now.After(w.End)
 }
 
 // --- Récupération API 42 (exécutée hors verrou, dans les goroutines) ---
@@ -440,47 +496,8 @@ func (s *Service) fetchCoalitions(ctx context.Context) ([]coalitionJSON, error) 
 	return coalitions, nil
 }
 
-// fetchCursusProjects liste une fois pour toutes les projets du cursus
-// piscine (id + slug) : une quinzaine de sujets fixes, indépendants de la
-// taille de la promo. Mis en cache indéfiniment (persisté), pour que
-// fetchProjects n'ait jamais à le refaire.
-func (s *Service) fetchCursusProjects(ctx context.Context) ([]cursusProjectInfo, error) {
-	s.mu.Lock()
-	cached := s.cursusProjects
-	s.mu.Unlock()
-	if cached != nil {
-		return cached, nil
-	}
-
-	type projectJSON struct {
-		ID   int    `json:"id"`
-		Slug string `json:"slug"`
-	}
-	projects, err := getAll[projectJSON](ctx, s.c, fmt.Sprintf("/v2/cursus/%d/projects", poolCursusID), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var out []cursusProjectInfo
-	for _, p := range projects {
-		if strings.HasPrefix(p.Slug, "c-piscine") {
-			out = append(out, cursusProjectInfo{ID: p.ID, Slug: p.Slug})
-		}
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("aucun projet de piscine C trouvé via l'API 42")
-	}
-
-	s.mu.Lock()
-	s.cursusProjects = out
-	s.saveCacheLocked()
-	s.mu.Unlock()
-	return out, nil
-}
-
 func (s *Service) fetchScore(roster []Pooler) ([]ScoreRow, error) {
 	ctx := context.Background()
-
 	coalitions, err := s.fetchCoalitions(ctx)
 	if err != nil {
 		return nil, err
@@ -498,10 +515,6 @@ func (s *Service) fetchScore(roster []Pooler) ([]ScoreRow, error) {
 
 	rows := []ScoreRow{}
 	for _, coalition := range coalitions {
-		// coalitions_users n'expose que id/coalition_id/user_id : pas de
-		// campus sur cette ressource, donc pas de filtre serveur possible
-		// ici (essayé, l'API renvoie 400 sur un filtre inexistant). On
-		// pagine tout puis on ne garde que les user_id du roster courant.
 		users, err := getAll[coalitionUserJSON](ctx, s.c,
 			fmt.Sprintf("/v2/coalitions/%d/coalitions_users", coalition.ID), nil)
 		if err != nil {
@@ -562,56 +575,31 @@ func categorize(slug string) string {
 	}
 }
 
-// fetchProjects agrège les projets validés par piscineux. Restructuré pour
-// interroger PAR PROJET (une quinzaine de sujets fixes), pas par élève :
-// avant, c'était une requête /v2/users/{id}/projects_users par piscineux,
-// donc un coût qui grossissait linéairement avec l'effectif de la promo.
-// Ici le coût est borné par le nombre de sujets du cursus, stable dans le
-// temps — le même principe que fetchExam employait déjà pour un seul exam.
 func (s *Service) fetchProjects(roster []Pooler) ([]ProjectRow, error) {
 	ctx := context.Background()
 
-	campusID, err := s.resolveCampusID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	projects, err := s.fetchCursusProjects(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	rows := make([]ProjectRow, len(roster))
-	byUserID := make(map[int]*ProjectRow, len(roster))
-	for i, p := range roster {
-		rows[i] = ProjectRow{Login: p.Login, Level: p.Level}
-		byUserID[p.ID] = &rows[i]
-	}
-
 	type projectsUserJSON struct {
 		Validated *bool `json:"validated?"`
-		User      struct {
-			ID int `json:"id"`
-		} `json:"user"`
+		Project   struct {
+			Slug string `json:"slug"`
+		} `json:"project"`
 	}
 
-	for _, proj := range projects {
+	rows := []ProjectRow{}
+	for _, pooler := range roster {
 		projectsUsers, err := getAll[projectsUserJSON](ctx, s.c,
-			fmt.Sprintf("/v2/projects/%d/projects_users", proj.ID),
-			url.Values{"filter[campus]": {strconv.Itoa(campusID)}})
+			fmt.Sprintf("/v2/users/%d/projects_users", pooler.ID), nil)
 		if err != nil {
 			return nil, err
 		}
 
-		cat := categorize(proj.Slug)
+		row := ProjectRow{Login: pooler.Login, Level: pooler.Level}
 		for _, pu := range projectsUsers {
-			if pu.Validated == nil || !*pu.Validated {
+			slug := pu.Project.Slug
+			if !strings.HasPrefix(slug, "c-piscine") || pu.Validated == nil || !*pu.Validated {
 				continue
 			}
-			row, ok := byUserID[pu.User.ID]
-			if !ok {
-				continue
-			}
-			switch cat {
+			switch categorize(slug) {
 			case "shell":
 				row.Shell++
 			case "exam":
@@ -622,10 +610,8 @@ func (s *Service) fetchProjects(roster []Pooler) ([]ProjectRow, error) {
 				row.C++
 			}
 		}
-	}
-
-	for i := range rows {
-		rows[i].Total = rows[i].Shell + rows[i].C + rows[i].Exam + rows[i].Rush
+		row.Total = row.Shell + row.C + row.Exam + row.Rush
+		rows = append(rows, row)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
@@ -663,6 +649,66 @@ func (s *Service) resolveProjectID(ctx context.Context, slug string) (int, error
 	s.saveCacheLocked()
 	s.mu.Unlock()
 	return projects[0].ID, nil
+}
+
+// isPoolExamSlug indique si un slug de projet correspond à l'un des exams de
+// piscine qu'on affiche (les valeurs d'ExamSlugs).
+func isPoolExamSlug(slug string) bool {
+	for _, s := range ExamSlugs {
+		if s == slug {
+			return true
+		}
+	}
+	return false
+}
+
+// fetchExamSchedule récupère l'horaire des exams de piscine du campus depuis
+// l'API 42 et le réduit à une fenêtre (begin_at/end_at) par slug d'exam. On ne
+// demande que les exams récents ou à venir (fenêtre bornée côté serveur) et on
+// écarte ceux déjà terminés ; en cas de plusieurs sessions pour un même exam,
+// on garde la plus proche (begin_at le plus tôt encore non terminé).
+func (s *Service) fetchExamSchedule() (map[string]examWindow, error) {
+	ctx := context.Background()
+	campusID, err := s.resolveCampusID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	type examJSON struct {
+		BeginAt  time.Time `json:"begin_at"`
+		EndAt    time.Time `json:"end_at"`
+		Projects []struct {
+			Slug string `json:"slug"`
+		} `json:"projects"`
+	}
+
+	now := time.Now()
+	exams, err := getAll[examJSON](ctx, s.c,
+		fmt.Sprintf("/v2/campus/%d/exams", campusID),
+		url.Values{"range[begin_at]": {
+			now.Add(-12*time.Hour).Format(time.RFC3339) + "," +
+				now.AddDate(0, 2, 0).Format(time.RFC3339),
+		}})
+	if err != nil {
+		return nil, err
+	}
+
+	windows := make(map[string]examWindow)
+	for _, ex := range exams {
+		if ex.EndAt.Before(now) {
+			continue // exam déjà terminé
+		}
+		for _, p := range ex.Projects {
+			if !isPoolExamSlug(p.Slug) {
+				continue
+			}
+			w := examWindow{Begin: ex.BeginAt, End: ex.EndAt}
+			if cur, ok := windows[p.Slug]; !ok || w.Begin.Before(cur.Begin) {
+				windows[p.Slug] = w
+			}
+		}
+	}
+	return windows, nil
 }
 
 func (s *Service) fetchExam(slug string, roster []Pooler) ([]ExamRow, error) {

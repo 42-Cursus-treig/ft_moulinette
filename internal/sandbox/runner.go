@@ -190,7 +190,7 @@ func copyFile(src, dst string) error {
 }
 
 // fetchSource récupère le code dans un dossier temporaire. Accepte une URL git
-// ou un chemin local (absolu, relatif, ou "file://") - pratique pour tester
+// ou un chemin local (absolu, relatif, ou "file://") — pratique pour tester
 // sans pousser sur GitHub à chaque essai.
 func fetchSource(source string) (string, error) {
 	dir, err := os.MkdirTemp("", "ft-moulinette-*")

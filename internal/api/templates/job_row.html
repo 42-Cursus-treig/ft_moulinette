@@ -35,7 +35,7 @@
     {{if .Result.Error}}<pre>{{.Result.Error}}</pre>{{end}}
     {{range .Result.ExerciseResults}}
     <div class="exercise-result {{.Status.CSSClass}}">
-      <div class="exercise-result-header">{{.Name}} - {{.Status.Label}}</div>
+      <div class="exercise-result-header">{{.Name}} — {{.Status.Label}}</div>
       {{if .TestOutput}}
       <ul class="tests">
         {{range .TestOutput}}

@@ -15,6 +15,7 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
 	"github.com/tristan-reig/ft-moulinette/internal/sandbox"
+	"github.com/tristan-reig/ft-moulinette/internal/visibility"
 )
 
 func main() {
@@ -68,23 +69,6 @@ func main() {
 	}
 	sessions := auth.NewStore()
 
-	// Classements de piscine : mêmes credentials 42 que l'OAuth, en flux
-	// client_credentials. Campus configurable via MOULINETTE_CAMPUS_NAME.
-	campusName := os.Getenv("MOULINETTE_CAMPUS_NAME")
-	if campusName == "" {
-		campusName = "Perpignan"
-	}
-	rankingCache := os.Getenv("MOULINETTE_RANKING_CACHE")
-	if rankingCache == "" {
-		rankingCache = "data/ranking_cache.json"
-	}
-	rankingHistory := os.Getenv("MOULINETTE_RANKING_HISTORY")
-	if rankingHistory == "" {
-		rankingHistory = "data/ranking_history.json"
-	}
-	poolSvc := pool.NewService(clientID, clientSecret, campusName, rankingCache, rankingHistory)
-	poolSvc.StartDailySnapshots()
-
 	hist, err := history.New(historyDir)
 	if err != nil {
 		log.Fatal("initialisation de l'historique: ", err)
@@ -95,6 +79,17 @@ func main() {
 		log.Fatal("initialisation des verrous: ", err)
 	}
 
+	visibilityPath := os.Getenv("MOULINETTE_VISIBILITY_FILE")
+	if visibilityPath == "" {
+		visibilityPath = "data/visibility.json"
+	}
+	visibilityStore, err := visibility.New(visibilityPath)
+	if err != nil {
+		log.Fatal("initialisation de la visibilité: ", err)
+	}
+
+	// Pool de workers : chaque worker prend un job dans la queue,
+	// le fait tourner dans la sandbox Docker, et stocke le résultat.
 	workerCount := 3
 	q := queue.New(workerCount, sandbox.Run, hist)
 	if err := q.LoadHistory(); err != nil {
@@ -103,12 +98,28 @@ func main() {
 	q.Start()
 	defer q.Stop()
 
-	// serverBootID distingue les jobs du démarrage courant (affichés sur la
-	// page principale, survivent à un F5) de ceux des démarrages précédents
-	// (visibles seulement sur /history).
+	// Identifiant unique de CE démarrage du serveur : sert à distinguer, sur
+	// la page principale, "jobs de la session serveur actuelle" (visibles,
+	// survivent à un F5) de "jobs d'un précédent démarrage" (uniquement
+	// visibles sur /history désormais).
 	serverBootID := fmt.Sprintf("%d", time.Now().UnixNano())
+	
+	campusName := os.Getenv("MOULINETTE_CAMPUS_NAME")
+        if campusName == "" {
+                campusName = "Perpignan" // Valeur par défaut
+        }
+        poolCachePath := os.Getenv("MOULINETTE_POOL_CACHE")
+        if poolCachePath == "" {
+                poolCachePath = "data/pool_cache.json"
+        }
+        poolHistoryPath := os.Getenv("MOULINETTE_POOL_HISTORY")
+        if poolHistoryPath == "" {
+                poolHistoryPath = "data/pool_history.json"
+        }
+	
+	poolService := pool.NewService(clientID, clientSecret, campusName, poolCachePath, poolHistoryPath)
 
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolSvc)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, visibilityStore)
 	if err != nil {
 		log.Fatal(err)
 	}

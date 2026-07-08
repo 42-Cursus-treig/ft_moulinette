@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -18,7 +17,6 @@ const (
 	apiBase            = "https://api.intra.42.fr"
 	minRequestInterval = 550 * time.Millisecond // limite API 42 : 2 req/s
 	maxRetries         = 3
-	requestLogWindow   = time.Hour // fenêtre de suivi du quota (1200 req/h chez 42)
 )
 
 // client est un client API 42 en client_credentials : les requêtes sont
@@ -31,9 +29,6 @@ type client struct {
 	token          string
 	tokenExpiresAt time.Time
 	lastRequestAt  time.Time
-
-	logMu      sync.Mutex
-	requestLog []time.Time // horodatage de chaque requête aboutie, pour le suivi du quota horaire
 }
 
 func newClient(id, secret string) *client {
@@ -42,38 +37,6 @@ func newClient(id, secret string) *client {
 		secret: secret,
 		http:   &http.Client{Timeout: 20 * time.Second},
 	}
-}
-
-// recordRequest journalise une requête (log serveur + compteur glissant).
-func (c *client) recordRequest(method, pathname string, status int, duration time.Duration) {
-	c.logMu.Lock()
-	c.requestLog = append(c.requestLog, time.Now())
-	c.pruneLogLocked()
-	count := len(c.requestLog)
-	c.logMu.Unlock()
-
-	log.Printf("[pool] %s %s -> %d (%s) — %d requête(s) API 42 dans la dernière heure",
-		method, pathname, status, duration.Round(time.Millisecond), count)
-}
-
-// pruneLogLocked retire les entrées plus vieilles que requestLogWindow.
-// c.logMu doit être tenu par l'appelant.
-func (c *client) pruneLogLocked() {
-	cutoff := time.Now().Add(-requestLogWindow)
-	i := 0
-	for i < len(c.requestLog) && c.requestLog[i].Before(cutoff) {
-		i++
-	}
-	c.requestLog = c.requestLog[i:]
-}
-
-// RequestsLastHour renvoie le nombre de requêtes API 42 effectuées dans la
-// dernière heure glissante — pour vérifier de visu qu'on reste sous le quota.
-func (c *client) RequestsLastHour() int {
-	c.logMu.Lock()
-	defer c.logMu.Unlock()
-	c.pruneLogLocked()
-	return len(c.requestLog)
 }
 
 func (c *client) fetchToken(ctx context.Context) error {
@@ -150,7 +113,6 @@ func (c *client) get(ctx context.Context, pathname string, params url.Values, ou
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
 
-		start := time.Now()
 		resp, err := c.http.Do(req)
 		if err != nil {
 			if attempt < maxRetries {
@@ -158,7 +120,6 @@ func (c *client) get(ctx context.Context, pathname string, params url.Values, ou
 			}
 			return fmt.Errorf("API 42 sur %s : %w", u.Path, err)
 		}
-		c.recordRequest(http.MethodGet, u.Path, resp.StatusCode, time.Since(start))
 
 		if (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500) && attempt < maxRetries {
 			retryAfter := 1500 * time.Millisecond

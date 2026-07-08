@@ -6,9 +6,11 @@ import (
 	"strings"
 )
 
-// loadDotEnv charge les variables KEY=VALUE de path dans l'environnement.
-// Les variables déjà définies ne sont pas écrasées.
-// Un fichier absent n'est pas une erreur.
+// loadDotEnv lit un fichier .env (format KEY=VALUE, une variable par ligne)
+// et pose chaque variable dans l'environnement du processus — sauf si elle
+// y est déjà définie, pour qu'un vrai export shell ou une variable posée
+// par Docker garde toujours la priorité sur le fichier local.
+// Absence du fichier = pas une erreur (cas normal en prod/CI).
 func loadDotEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {

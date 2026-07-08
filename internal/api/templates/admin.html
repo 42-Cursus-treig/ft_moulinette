@@ -32,11 +32,29 @@
     </div>
   </header>
 
-  <div class="admin-quota brutal-card{{if ge .PoolRequestsLastHour 1100}} quota-danger{{else if ge .PoolRequestsLastHour 800}} quota-warn{{end}}">
-    <span class="admin-quota-label">Requêtes API 42 (dernière heure)</span>
-    <span class="admin-quota-value">{{.PoolRequestsLastHour}} / 1200</span>
+  <h2 class="admin-subtitle">Visibilité des sections (membres non-admins)</h2>
+  <p class="hint admin-hint">Les administrateurs voient toujours toutes les sections.</p>
+  <div class="admin-list">
+    {{range .Sections}}
+    <div class="admin-row">
+      <span class="admin-row-label">{{.Label}}
+        {{if index $.Visibility .Key}}<span class="vis-badge on">Visible</span>{{else}}<span class="vis-badge off">Masqué</span>{{end}}
+      </span>
+      <form method="post" action="/admin/visibility">
+        <input type="hidden" name="section" value="{{.Key}}">
+        {{if index $.Visibility .Key}}
+        <input type="hidden" name="visible" value="false">
+        <button type="submit" class="admin-btn lock">Masquer</button>
+        {{else}}
+        <input type="hidden" name="visible" value="true">
+        <button type="submit" class="admin-btn unlock">Afficher</button>
+        {{end}}
+      </form>
+    </div>
+    {{end}}
   </div>
 
+  <h2 class="admin-subtitle">Sujets</h2>
   <div class="admin-list">
     {{range .Exercises}}
     <div class="admin-row">

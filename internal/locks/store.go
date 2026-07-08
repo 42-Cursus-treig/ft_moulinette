@@ -1,4 +1,4 @@
-// Package locks gère le verrouillage de sujets (ex: "c02") - utile pour
+// Package locks gère le verrouillage de sujets (ex: "c02") — utile pour
 // bloquer/masquer un sujet avant même d'avoir écrit son fichier YAML de
 // tests, ou pour désactiver temporairement un sujet déjà en place.
 // Persisté sur disque, indépendant de internal/testdef.

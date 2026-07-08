@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,6 +14,30 @@ import (
 type examTab struct {
 	Value string
 	Label string
+}
+
+// examScheduleView décrit l'horaire d'un exam pour l'affichage sous les
+// boutons (date, plage horaire, durée), en heure locale du serveur.
+type examScheduleView struct {
+	Date     string // ex. 11/07/2026
+	Start    string // ex. 08:00
+	End      string // ex. 12:00
+	Duration string // ex. 4h00
+	Active   bool   // l'exam est en cours en ce moment
+}
+
+// buildExamSchedule met en forme la fenêtre [begin, end] d'un exam.
+func buildExamSchedule(begin, end time.Time) examScheduleView {
+	begin, end = begin.Local(), end.Local()
+	d := end.Sub(begin)
+	now := time.Now()
+	return examScheduleView{
+		Date:     begin.Format("02/01/2006"),
+		Start:    begin.Format("15:04"),
+		End:      end.Format("15:04"),
+		Duration: fmt.Sprintf("%dh%02d", int(d.Hours()), int(d.Minutes())%60),
+		Active:   !now.Before(begin) && !now.After(end),
+	}
 }
 
 var examTabs = []examTab{
@@ -40,11 +65,10 @@ type coalitionPill struct {
 func (h *handlers) rankingPage(w http.ResponseWriter, r *http.Request) {
 	user, _ := userFromContext(r.Context())
 
-	data := map[string]any{
-		"User":    user,
-		"IsAdmin": h.isAdmin(user),
-		"Exams":   examTabs,
-	}
+	data := h.navFlags(user)
+	data["User"] = user
+	data["Exams"] = examTabs
+	data["Page"] = "classement"
 	if err := h.tmpl.ExecuteTemplate(w, "ranking", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -86,7 +110,7 @@ func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 		"Year":          0,
 		"Err":           "",
 		"UpdatedAt":     time.Time{},
-		"RefreshSec":    300,
+		"RefreshSec":    600,
 		"ScoreRows":     []pool.ScoreRow(nil),
 		"ProjectRows":   []pool.ProjectRow(nil),
 		"ExamRows":      []pool.ExamRow(nil),
@@ -115,7 +139,10 @@ func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 			data["ProjectRows"], status = h.pool.Projects(month, yearStr)
 		case "exam":
 			data["ExamRows"], status = h.pool.Exam(month, yearStr, exam)
-			data["RefreshSec"] = 60
+			data["RefreshSec"] = int(h.pool.ExamRefresh(exam).Seconds())
+			if begin, end, ok := h.pool.ExamWindow(exam); ok {
+				data["ExamSchedule"] = buildExamSchedule(begin, end)
+			}
 		case "progress":
 			// Prime le cache score (c'est lui qui alimente les relevés) et
 			// sert l'historique existant sans écran de chargement si possible.

@@ -57,7 +57,7 @@
       if (target === 'git') {
         archiveInput.required = false;
         submitButton.disabled = true;
-        submitButton.title = "Le dépôt par lien Git arrive bientôt - utilise l'upload d'archive pour l'instant.";
+        submitButton.title = "Le dépôt par lien Git arrive bientôt — utilise l'upload d'archive pour l'instant.";
       } else {
         archiveInput.required = true;
         submitButton.disabled = false;

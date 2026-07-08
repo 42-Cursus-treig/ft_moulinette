@@ -19,39 +19,7 @@
 <body>
   <header>
     <h1>ft_moulinette</h1>
-    <div class="header-actions">
-      {{if .IsAdmin}}
-      <a href="/admin" class="theme-toggle" aria-label="Administration" title="Administration">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-      </a>
-      {{end}}
-      <a href="/classement" class="theme-toggle" aria-label="Classement" title="Classement">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
-          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
-          <path d="M4 22h16"></path>
-          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
-          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
-          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
-        </svg>
-      </a>
-      <a href="/history" class="theme-toggle" aria-label="Historique" title="Historique">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path>
-          <path d="M12 7v5l3 3"></path>
-        </svg>
-      </a>
-      <span class="user-badge">{{.User.Login}}</span>
-      <form method="post" action="/auth/logout">
-        <button type="submit" class="theme-toggle" title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
-      </form>
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
-        <img id="theme-icon" src="/static/moon.svg" alt="" width="20" height="20">
-      </button>
-    </div>
+    {{template "header_actions" .}}
   </header>
 
   <div id="error-banner"></div>
@@ -90,7 +58,7 @@
 
     <div class="source-panel" data-panel="git" hidden>
       <input type="text" name="repo_url" class="git-input" placeholder="git@vogsphere.42xxx.fr:vogsphere/intra-uuid-..." disabled>
-      <p class="hint">Bientôt disponible - utilise l'upload d'archive pour l'instant.</p>
+      <p class="hint">Bientôt disponible — utilise l'upload d'archive pour l'instant.</p>
     </div>
 
     <div class="form-row">

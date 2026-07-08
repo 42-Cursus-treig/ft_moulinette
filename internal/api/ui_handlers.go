@@ -47,12 +47,11 @@ func (h *handlers) index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data := map[string]any{
-		"Exercises": exercises,
-		"Jobs":      current,
-		"User":      user,
-		"IsAdmin":   h.isAdmin(user),
-	}
+	data := h.navFlags(user)
+	data["Exercises"] = exercises
+	data["Jobs"] = current
+	data["User"] = user
+	data["Page"] = "moulinette"
 	if err := h.tmpl.ExecuteTemplate(w, "index", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -69,10 +68,10 @@ func (h *handlers) history(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data := map[string]any{
-		"Jobs": finished,
-		"User": user,
-	}
+	data := h.navFlags(user)
+	data["Jobs"] = finished
+	data["User"] = user
+	data["Page"] = "history"
 	if err := h.tmpl.ExecuteTemplate(w, "history", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

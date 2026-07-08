@@ -8,6 +8,8 @@
 </div>
 
 {{else if eq .State "unavailable"}}
+<!-- 43200s = 12h : hors piscine, inutile de re-vérifier plus souvent
+     (un simple rechargement de page re-vérifie de toute façon). -->
 <div class="ranking-state ranking-unavailable brutal-card"
      hx-get="{{.SelfURL}}" hx-trigger="load delay:43200s" hx-target="#ranking-content" hx-swap="innerHTML">
   <p class="ranking-unavailable-title">Unavailable</p>
@@ -28,11 +30,11 @@
      hx-get="{{.SelfURL}}" hx-trigger="every {{.RefreshSec}}s" hx-target="#ranking-content" hx-swap="innerHTML">
   <div class="ranking-meta">
     <span class="ranking-title">
-      {{if eq .Tab "score"}}Score coalition
-      {{else if eq .Tab "projects"}}Projets validés
-      {{else if eq .Tab "progress"}}Progression
-      {{else}}{{.ExamLabel}}{{end}}
-      - Piscine {{.MonthLabel}} {{.Year}}
+      {{if eq .Tab "score"}}🏆 Score coalition
+      {{else if eq .Tab "projects"}}📦 Projets validés
+      {{else if eq .Tab "progress"}}📈 Progression
+      {{else}}🏁 {{.ExamLabel}}{{end}}
+      — Piscine {{.MonthLabel}} {{.Year}}
     </span>
     <span class="ranking-updated" title="Actualisation automatique toutes les {{.RefreshSec}} secondes">
       MàJ {{.UpdatedAt.Format "15:04:05"}}
@@ -83,7 +85,7 @@
   <div class="table-scroll">
   <table class="ranking-table brutal-card">
     <thead>
-      <tr><th>#</th><th>Login</th><th class="num">Total</th><th class="num">Shell</th><th class="num">C</th><th class="num">Exam</th><th class="num">Rush</th><th class="num">Niveau</th></tr>
+      <tr><th>#</th><th>Login</th><th class="num">Total</th><th class="num">🐚 Shell</th><th class="num">💻 C</th><th class="num">📝 Exam</th><th class="num">🚀 Rush</th><th class="num">Niveau</th></tr>
     </thead>
     <tbody>
       {{range $i, $r := .ProjectRows}}
@@ -105,7 +107,7 @@
 
   {{else if eq .Tab "progress"}}
   {{if not .Charts}}
-  <p class="empty-state">Aucun relevé de progression pour le moment - le premier sera pris automatiquement aujourd'hui.</p>
+  <p class="empty-state">Aucun relevé de progression pour le moment — le premier sera pris automatiquement aujourd'hui.</p>
   {{else}}
   {{range $c := .Charts}}
   <div class="chart-card brutal-card" data-chart="{{$c.DataJSON}}">
@@ -139,6 +141,18 @@
   {{end}}
 
   {{else}}
+  {{with .ExamSchedule}}
+  <div class="exam-schedule brutal-card{{if .Active}} active{{end}}">
+    <span class="exam-sched-item">📅 {{.Date}}</span>
+    <span class="exam-sched-item">🕒 {{.Start}} → {{.End}}</span>
+    <span class="exam-sched-item">⏱️ {{.Duration}}</span>
+    {{if .Active}}<span class="exam-sched-live">🔴 en cours</span>{{end}}
+  </div>
+  {{else}}
+  <div class="exam-schedule brutal-card exam-schedule-empty">
+    <span class="exam-sched-item">Horaire de l'exam non disponible pour le moment.</span>
+  </div>
+  {{end}}
   {{if not .ExamRows}}
   <p class="empty-state">Aucun piscineux inscrit à cet exam pour le moment.</p>
   {{else}}
@@ -152,8 +166,8 @@
       <tr{{if lt $i 3}} class="podium"{{end}}>
         <td class="rank">{{medal $i}}</td>
         <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
-        <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}-{{end}}</td>
-        <td>{{if eq $r.Status "in_progress"}}En cours{{else if $r.Validated}}Validé{{else if $r.HasMark}}Échoué{{else}}-{{end}}</td>
+        <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}—{{end}}</td>
+        <td>{{if eq $r.Status "in_progress"}}🏃 En cours{{else if $r.Validated}}✅ Validé{{else if $r.HasMark}}❌ Échoué{{else}}—{{end}}</td>
       </tr>
       {{end}}
     </tbody>

@@ -1,0 +1,32 @@
+{{define "disabled"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette — indisponible</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem('ft-moulinette-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>ft_moulinette</h1>
+    {{template "header_actions" .}}
+  </header>
+
+  <div class="ranking-state ranking-unavailable brutal-card">
+    <p class="ranking-unavailable-title">Section désactivée</p>
+    <p>Cette section n'est pas accessible pour le moment.</p>
+    <p class="hint">Un administrateur peut la réactiver.</p>
+  </div>
+</body>
+</html>
+{{end}}
