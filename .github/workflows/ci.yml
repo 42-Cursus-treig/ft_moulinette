@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -46,3 +46,20 @@ jobs:
 
       - name: Build de l'image sandbox
         run: docker build -t ftm-sandbox-test -f Dockerfile.sandbox .
+
+  deploy:
+    needs: [lint-build, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déploiement SSH sur le VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ~/ft_moulinette
+            git pull --ff-only
+            docker compose up -d --build
+            docker image prune -f
