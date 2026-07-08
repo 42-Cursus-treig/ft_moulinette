@@ -58,6 +58,7 @@
   {{if not .ScoreRows}}
   <p class="empty-state">Aucun score de coalition pour le moment.</p>
   {{else}}
+  <div class="table-scroll">
   <table class="ranking-table brutal-card">
     <thead>
       <tr><th>#</th><th>Login</th><th>Coalition</th><th class="num">Score</th><th class="num">Niveau</th></tr>
@@ -74,12 +75,14 @@
       {{end}}
     </tbody>
   </table>
+  </div>
   {{end}}
 
   {{else if eq .Tab "projects"}}
   {{if not .ProjectRows}}
   <p class="empty-state">Aucun piscineux trouvé pour le moment.</p>
   {{else}}
+  <div class="table-scroll">
   <table class="ranking-table brutal-card">
     <thead>
       <tr><th>#</th><th>Login</th><th class="num">Total</th><th class="num">🐚 Shell</th><th class="num">💻 C</th><th class="num">📝 Exam</th><th class="num">🚀 Rush</th><th class="num">Niveau</th></tr>
@@ -99,6 +102,7 @@
       {{end}}
     </tbody>
   </table>
+  </div>
   {{end}}
 
   {{else if eq .Tab "progress"}}
@@ -140,6 +144,7 @@
   {{if not .ExamRows}}
   <p class="empty-state">Aucun piscineux inscrit à cet exam pour le moment.</p>
   {{else}}
+  <div class="table-scroll">
   <table class="ranking-table brutal-card">
     <thead>
       <tr><th>#</th><th>Login</th><th class="num">Note</th><th>Statut</th></tr>
@@ -155,6 +160,7 @@
       {{end}}
     </tbody>
   </table>
+  </div>
   {{end}}
   {{end}}
 </div>

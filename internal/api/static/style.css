@@ -654,4 +654,97 @@ pre {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.85rem;
   color: #e4e4e7;
+  word-break: break-word;
+}
+
+/* Conteneur de tableau : défilement horizontal sur petit écran plutôt que
+   d'écraser les colonnes. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --- Responsive : agencement téléphone --- */
+@media (max-width: 640px) {
+  body {
+    padding: 1.2rem 0.9rem 3rem;
+    line-height: 1.35;
+  }
+
+  /* Header empilé : titre au-dessus, actions en dessous. */
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin-bottom: 1.6rem;
+    padding-bottom: 1rem;
+  }
+  h1 { font-size: 1.7rem; letter-spacing: 0; }
+  .header-actions { flex-wrap: wrap; gap: 0.5rem; width: 100%; }
+  .theme-toggle { width: 38px; height: 38px; }
+  .user-badge { font-size: 0.75rem; padding: 0.45rem 0.6rem; }
+
+  form { margin-bottom: 2rem; }
+
+  /* Grille d'exercices : 2 par ligne. */
+  .exercise-btn {
+    flex: 0 0 calc((100% - 0.7rem) / 2);
+    padding: 0.6rem 0.4rem;
+    font-size: 0.9rem;
+  }
+
+  .source-tabs { flex-wrap: wrap; }
+  .dropzone { padding: 2rem 1rem; font-size: 0.9rem; }
+  .git-input { font-size: 0.8rem; }
+
+  .form-row { flex-direction: column; }
+  .form-row button { width: 100%; justify-content: center; }
+
+  /* Lignes de jobs : libellé au-dessus, statut en dessous. */
+  .job-row { padding: 1rem; }
+  .meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.9rem;
+  }
+  .meta .repo { font-size: 0.9rem; word-break: break-word; }
+  .status-group { justify-content: flex-start; width: 100%; }
+  .tests li { font-size: 0.8rem; }
+  pre { padding: 0.8rem; font-size: 0.75rem; }
+
+  /* Administration : bouton sous le libellé. */
+  .admin-row { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+  .admin-new-form { flex-direction: column; }
+  .admin-new-form input[type="text"], .admin-new-form button { width: 100%; }
+
+  /* Classement : onglets en grille 2×2, tableaux défilables. */
+  .rank-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  .rank-tab { padding: 0.55rem 0.4rem; text-align: center; justify-content: center; }
+
+  .ranking-controls { gap: 0.8rem; margin-bottom: 1.2rem; }
+  .ranking-meta { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
+  .ranking-title { font-size: 0.9rem; }
+
+  .ranking-table { font-size: 0.8rem; min-width: 480px; }
+  .ranking-table th, .ranking-table td { padding: 0.45rem 0.5rem; }
+
+  .ranking-state { padding: 1.6rem 1rem; }
+  .ranking-unavailable-title { font-size: 1.2rem; }
+
+  .coal-pills, .exam-picker { gap: 0.4rem; }
+
+  /* Graphes : carte moins large, légende compacte. */
+  .chart-card { padding: 0.8rem; margin-bottom: 1rem; }
+  .chart-title { font-size: 0.78rem; }
+  .chart-legend { gap: 0.4rem; }
+  .legend-item { font-size: 0.7rem; padding: 0.2rem 0.4rem; }
+  .chart-tooltip { min-width: 120px; font-size: 0.7rem; }
+  .chart-note { font-size: 0.75rem; }
 }
