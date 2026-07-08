@@ -16,9 +16,14 @@ import (
 const poolCursusID = 9
 
 // TTL des caches : mêmes ordres de grandeur que le bot Discord
-// (boards toutes les 10 min, exams toutes les 60 s).
+// (boards toutes les 10 min, exams toutes les 60 s), sauf le roster.
 const (
-	rosterTTL   = 10 * time.Minute
+	// rosterTTL est volontairement long : le roster d'une session (mois +
+	// année) ne change pas en cours de piscine, et sa récupération est
+	// coûteuse (cursus_users n'a pas de filtre par session, donc l'API
+	// pagine tout l'historique du campus avant qu'on filtre côté client).
+	// Le reservir 10 min ne fait que gaspiller des requêtes pour rien.
+	rosterTTL   = 6 * time.Hour
 	scoreTTL    = 10 * time.Minute
 	projectsTTL = 15 * time.Minute
 	examTTL     = 60 * time.Second
@@ -113,6 +118,14 @@ type session struct {
 	exams    map[string]*entry[[]ExamRow]
 }
 
+// cursusProjectInfo est un projet du cursus piscine (id + slug). La liste
+// des sujets ne change pas en cours de piscine : mise en cache indéfiniment,
+// comme campusID/coalitions/projectIDs.
+type cursusProjectInfo struct {
+	ID   int
+	Slug string
+}
+
 // Service expose les classements de piscine au reste du serveur, avec cache
 // en mémoire (persisté sur disque) et récupération asynchrone depuis l'API 42.
 type Service struct {
@@ -121,11 +134,12 @@ type Service struct {
 	cachePath  string
 	history    *historyStore
 
-	mu         sync.Mutex
-	campusID   int
-	coalitions []coalitionJSON
-	projectIDs map[string]int
-	sessions   map[string]*session
+	mu             sync.Mutex
+	campusID       int
+	coalitions     []coalitionJSON
+	projectIDs     map[string]int
+	cursusProjects []cursusProjectInfo
+	sessions       map[string]*session
 }
 
 // NewService construit le service ; id/secret sont les credentials OAuth de
@@ -143,6 +157,13 @@ func NewService(clientID, clientSecret, campusName, cachePath, historyPath strin
 	}
 	s.loadCache()
 	return s
+}
+
+// RequestsLastHour renvoie le nombre de requêtes envoyées à l'API 42 dans
+// la dernière heure glissante — pour vérifier de visu que le quota
+// (1200 req/h) est respecté, typiquement affiché sur /admin.
+func (s *Service) RequestsLastHour() int {
+	return s.c.RequestsLastHour()
 }
 
 // CurrentSession renvoie la piscine en cours (les piscines ont lieu en
@@ -419,8 +440,47 @@ func (s *Service) fetchCoalitions(ctx context.Context) ([]coalitionJSON, error) 
 	return coalitions, nil
 }
 
+// fetchCursusProjects liste une fois pour toutes les projets du cursus
+// piscine (id + slug) : une quinzaine de sujets fixes, indépendants de la
+// taille de la promo. Mis en cache indéfiniment (persisté), pour que
+// fetchProjects n'ait jamais à le refaire.
+func (s *Service) fetchCursusProjects(ctx context.Context) ([]cursusProjectInfo, error) {
+	s.mu.Lock()
+	cached := s.cursusProjects
+	s.mu.Unlock()
+	if cached != nil {
+		return cached, nil
+	}
+
+	type projectJSON struct {
+		ID   int    `json:"id"`
+		Slug string `json:"slug"`
+	}
+	projects, err := getAll[projectJSON](ctx, s.c, fmt.Sprintf("/v2/cursus/%d/projects", poolCursusID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []cursusProjectInfo
+	for _, p := range projects {
+		if strings.HasPrefix(p.Slug, "c-piscine") {
+			out = append(out, cursusProjectInfo{ID: p.ID, Slug: p.Slug})
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("aucun projet de piscine C trouvé via l'API 42")
+	}
+
+	s.mu.Lock()
+	s.cursusProjects = out
+	s.saveCacheLocked()
+	s.mu.Unlock()
+	return out, nil
+}
+
 func (s *Service) fetchScore(roster []Pooler) ([]ScoreRow, error) {
 	ctx := context.Background()
+
 	coalitions, err := s.fetchCoalitions(ctx)
 	if err != nil {
 		return nil, err
@@ -438,6 +498,10 @@ func (s *Service) fetchScore(roster []Pooler) ([]ScoreRow, error) {
 
 	rows := []ScoreRow{}
 	for _, coalition := range coalitions {
+		// coalitions_users n'expose que id/coalition_id/user_id : pas de
+		// campus sur cette ressource, donc pas de filtre serveur possible
+		// ici (essayé, l'API renvoie 400 sur un filtre inexistant). On
+		// pagine tout puis on ne garde que les user_id du roster courant.
 		users, err := getAll[coalitionUserJSON](ctx, s.c,
 			fmt.Sprintf("/v2/coalitions/%d/coalitions_users", coalition.ID), nil)
 		if err != nil {
@@ -498,31 +562,56 @@ func categorize(slug string) string {
 	}
 }
 
+// fetchProjects agrège les projets validés par piscineux. Restructuré pour
+// interroger PAR PROJET (une quinzaine de sujets fixes), pas par élève :
+// avant, c'était une requête /v2/users/{id}/projects_users par piscineux,
+// donc un coût qui grossissait linéairement avec l'effectif de la promo.
+// Ici le coût est borné par le nombre de sujets du cursus, stable dans le
+// temps — le même principe que fetchExam employait déjà pour un seul exam.
 func (s *Service) fetchProjects(roster []Pooler) ([]ProjectRow, error) {
 	ctx := context.Background()
 
-	type projectsUserJSON struct {
-		Validated *bool `json:"validated?"`
-		Project   struct {
-			Slug string `json:"slug"`
-		} `json:"project"`
+	campusID, err := s.resolveCampusID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	projects, err := s.fetchCursusProjects(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	rows := []ProjectRow{}
-	for _, pooler := range roster {
+	rows := make([]ProjectRow, len(roster))
+	byUserID := make(map[int]*ProjectRow, len(roster))
+	for i, p := range roster {
+		rows[i] = ProjectRow{Login: p.Login, Level: p.Level}
+		byUserID[p.ID] = &rows[i]
+	}
+
+	type projectsUserJSON struct {
+		Validated *bool `json:"validated?"`
+		User      struct {
+			ID int `json:"id"`
+		} `json:"user"`
+	}
+
+	for _, proj := range projects {
 		projectsUsers, err := getAll[projectsUserJSON](ctx, s.c,
-			fmt.Sprintf("/v2/users/%d/projects_users", pooler.ID), nil)
+			fmt.Sprintf("/v2/projects/%d/projects_users", proj.ID),
+			url.Values{"filter[campus]": {strconv.Itoa(campusID)}})
 		if err != nil {
 			return nil, err
 		}
 
-		row := ProjectRow{Login: pooler.Login, Level: pooler.Level}
+		cat := categorize(proj.Slug)
 		for _, pu := range projectsUsers {
-			slug := pu.Project.Slug
-			if !strings.HasPrefix(slug, "c-piscine") || pu.Validated == nil || !*pu.Validated {
+			if pu.Validated == nil || !*pu.Validated {
 				continue
 			}
-			switch categorize(slug) {
+			row, ok := byUserID[pu.User.ID]
+			if !ok {
+				continue
+			}
+			switch cat {
 			case "shell":
 				row.Shell++
 			case "exam":
@@ -533,8 +622,10 @@ func (s *Service) fetchProjects(roster []Pooler) ([]ProjectRow, error) {
 				row.C++
 			}
 		}
-		row.Total = row.Shell + row.C + row.Exam + row.Rush
-		rows = append(rows, row)
+	}
+
+	for i := range rows {
+		rows[i].Total = rows[i].Shell + rows[i].C + rows[i].Exam + rows[i].Rush
 	}
 
 	sort.Slice(rows, func(i, j int) bool {

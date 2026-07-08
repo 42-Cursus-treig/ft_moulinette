@@ -152,6 +152,22 @@ form { margin-bottom: 3rem; }
 .exercise-btn.locked:hover { transform: none; box-shadow: 3px 3px 0px var(--border); }
 .exercise-btn .lock-icon { width: 14px; height: 14px; margin-left: 0.4rem; vertical-align: -2px; }
 
+.admin-quota {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+.admin-quota-label { text-transform: uppercase; font-size: 0.85rem; color: var(--text-muted); }
+.admin-quota-value { font-size: 1.1rem; }
+.admin-quota.quota-warn { border-color: var(--pending); box-shadow: 5px 5px 0px var(--pending); }
+.admin-quota.quota-warn .admin-quota-value { color: var(--pending); }
+.admin-quota.quota-danger { border-color: var(--fail); box-shadow: 5px 5px 0px var(--fail); }
+.admin-quota.quota-danger .admin-quota-value { color: var(--fail); }
+
 .admin-list { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 2.5rem; }
 .admin-row {
   display: flex;

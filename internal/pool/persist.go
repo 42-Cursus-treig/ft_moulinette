@@ -17,17 +17,18 @@ type persistedEntry[T any] struct {
 }
 
 type persistedSession struct {
-	Roster   *persistedEntry[[]Pooler]              `json:"roster,omitempty"`
-	Score    *persistedEntry[[]ScoreRow]            `json:"score,omitempty"`
-	Projects *persistedEntry[[]ProjectRow]          `json:"projects,omitempty"`
-	Exams    map[string]*persistedEntry[[]ExamRow]  `json:"exams,omitempty"`
+	Roster   *persistedEntry[[]Pooler]             `json:"roster,omitempty"`
+	Score    *persistedEntry[[]ScoreRow]           `json:"score,omitempty"`
+	Projects *persistedEntry[[]ProjectRow]         `json:"projects,omitempty"`
+	Exams    map[string]*persistedEntry[[]ExamRow] `json:"exams,omitempty"`
 }
 
 type persistedCache struct {
-	CampusID   int                          `json:"campus_id,omitempty"`
-	Coalitions []coalitionJSON              `json:"coalitions,omitempty"`
-	ProjectIDs map[string]int               `json:"project_ids,omitempty"`
-	Sessions   map[string]*persistedSession `json:"sessions"`
+	CampusID       int                          `json:"campus_id,omitempty"`
+	Coalitions     []coalitionJSON              `json:"coalitions,omitempty"`
+	ProjectIDs     map[string]int               `json:"project_ids,omitempty"`
+	CursusProjects []cursusProjectInfo          `json:"cursus_projects,omitempty"`
+	Sessions       map[string]*persistedSession `json:"sessions"`
 }
 
 func persistEntry[T any](e *entry[T]) *persistedEntry[T] {
@@ -51,10 +52,11 @@ func (s *Service) saveCacheLocked() {
 	}
 
 	pc := persistedCache{
-		CampusID:   s.campusID,
-		Coalitions: s.coalitions,
-		ProjectIDs: s.projectIDs,
-		Sessions:   make(map[string]*persistedSession, len(s.sessions)),
+		CampusID:       s.campusID,
+		Coalitions:     s.coalitions,
+		ProjectIDs:     s.projectIDs,
+		CursusProjects: s.cursusProjects,
+		Sessions:       make(map[string]*persistedSession, len(s.sessions)),
 	}
 	for key, sess := range s.sessions {
 		ps := &persistedSession{
@@ -107,6 +109,9 @@ func (s *Service) loadCache() {
 	s.coalitions = pc.Coalitions
 	if pc.ProjectIDs != nil {
 		s.projectIDs = pc.ProjectIDs
+	}
+	if pc.CursusProjects != nil {
+		s.cursusProjects = pc.CursusProjects
 	}
 	for key, ps := range pc.Sessions {
 		sess := &session{exams: make(map[string]*entry[[]ExamRow])}
