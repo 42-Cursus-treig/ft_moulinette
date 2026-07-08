@@ -17,10 +17,10 @@ type persistedEntry[T any] struct {
 }
 
 type persistedSession struct {
-	Roster   *persistedEntry[[]Pooler]              `json:"roster,omitempty"`
-	Score    *persistedEntry[[]ScoreRow]            `json:"score,omitempty"`
-	Projects *persistedEntry[[]ProjectRow]          `json:"projects,omitempty"`
-	Exams    map[string]*persistedEntry[[]ExamRow]  `json:"exams,omitempty"`
+	Roster   *persistedEntry[[]Pooler]             `json:"roster,omitempty"`
+	Score    *persistedEntry[[]ScoreRow]           `json:"score,omitempty"`
+	Projects *persistedEntry[[]ProjectRow]         `json:"projects,omitempty"`
+	Exams    map[string]*persistedEntry[[]ExamRow] `json:"exams,omitempty"`
 }
 
 type persistedCache struct {

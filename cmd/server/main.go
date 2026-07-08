@@ -103,20 +103,20 @@ func main() {
 	// survivent à un F5) de "jobs d'un précédent démarrage" (uniquement
 	// visibles sur /history désormais).
 	serverBootID := fmt.Sprintf("%d", time.Now().UnixNano())
-	
+
 	campusName := os.Getenv("MOULINETTE_CAMPUS_NAME")
-        if campusName == "" {
-                campusName = "Perpignan" // Valeur par défaut
-        }
-        poolCachePath := os.Getenv("MOULINETTE_POOL_CACHE")
-        if poolCachePath == "" {
-                poolCachePath = "data/pool_cache.json"
-        }
-        poolHistoryPath := os.Getenv("MOULINETTE_POOL_HISTORY")
-        if poolHistoryPath == "" {
-                poolHistoryPath = "data/pool_history.json"
-        }
-	
+	if campusName == "" {
+		campusName = "Perpignan" // Valeur par défaut
+	}
+	poolCachePath := os.Getenv("MOULINETTE_POOL_CACHE")
+	if poolCachePath == "" {
+		poolCachePath = "data/pool_cache.json"
+	}
+	poolHistoryPath := os.Getenv("MOULINETTE_POOL_HISTORY")
+	if poolHistoryPath == "" {
+		poolHistoryPath = "data/pool_history.json"
+	}
+
 	poolService := pool.NewService(clientID, clientSecret, campusName, poolCachePath, poolHistoryPath)
 
 	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, visibilityStore)
