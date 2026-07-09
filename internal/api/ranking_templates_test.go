@@ -149,6 +149,34 @@ func TestBuildProgressCharts(t *testing.T) {
 	}
 }
 
+func TestBuildExamScheduleParisTZ(t *testing.T) {
+	// Exam 12:00→16:00 UTC un jour de juillet : la France est en heure d'été
+	// (CEST, UTC+2), donc l'affichage doit être 14:00→18:00, quelle que soit
+	// la timezone du serveur.
+	begin := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 7, 10, 16, 0, 0, 0, time.UTC)
+
+	v := buildExamSchedule(begin, end)
+	if v.Date != "10/07/2026" {
+		t.Errorf("Date = %q, attendu 10/07/2026", v.Date)
+	}
+	if v.Start != "14:00" || v.End != "18:00" {
+		t.Errorf("horaire = %s → %s, attendu 14:00 → 18:00 (heure de France)", v.Start, v.End)
+	}
+	if v.Duration != "4h00" {
+		t.Errorf("Duration = %q, attendu 4h00", v.Duration)
+	}
+
+	// Un exam d'hiver (janvier) : CET = UTC+1, donc 12:00 UTC → 13:00.
+	winter := buildExamSchedule(
+		time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, 1, 15, 16, 0, 0, 0, time.UTC),
+	)
+	if winter.Start != "13:00" {
+		t.Errorf("hiver : Start = %q, attendu 13:00 (CET)", winter.Start)
+	}
+}
+
 func TestCurrentPoolSession(t *testing.T) {
 	cases := []struct {
 		now       time.Time

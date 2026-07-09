@@ -8,6 +8,11 @@ import (
 	"strings"
 	"time"
 
+	// Embarque la base de fuseaux horaires dans le binaire pour que
+	// time.LoadLocation("Europe/Paris") fonctionne même dans un conteneur
+	// sans paquet tzdata (l'affichage des horaires d'exam en dépend).
+	_ "time/tzdata"
+
 	"github.com/tristan-reig/ft-moulinette/internal/api"
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
 	"github.com/tristan-reig/ft-moulinette/internal/history"

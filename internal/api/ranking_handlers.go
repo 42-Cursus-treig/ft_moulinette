@@ -16,8 +16,25 @@ type examTab struct {
 	Label string
 }
 
+// parisLoc est le fuseau horaire de la France (Europe/Paris, CET/CEST avec
+// heure d'été). On l'utilise pour afficher les horaires d'exam quelle que
+// soit la timezone du serveur (le VPS tourne en UTC). La base tzdata est
+// embarquée dans le binaire (import time/tzdata dans cmd/server) pour que
+// LoadLocation fonctionne même dans un conteneur sans tzdata.
+var parisLoc = loadParis()
+
+func loadParis() *time.Location {
+	loc, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		// Repli : CET fixe (UTC+1). Sans tzdata on perd l'heure d'été,
+		// mais on évite d'afficher de l'UTC brut.
+		return time.FixedZone("CET", 3600)
+	}
+	return loc
+}
+
 // examScheduleView décrit l'horaire d'un exam pour l'affichage sous les
-// boutons (date, plage horaire, durée), en heure locale du serveur.
+// boutons (date, plage horaire, durée), en heure de France.
 type examScheduleView struct {
 	Date     string // ex. 11/07/2026
 	Start    string // ex. 08:00
@@ -26,11 +43,12 @@ type examScheduleView struct {
 	Active   bool   // l'exam est en cours en ce moment
 }
 
-// buildExamSchedule met en forme la fenêtre [begin, end] d'un exam.
+// buildExamSchedule met en forme la fenêtre [begin, end] d'un exam, en
+// heure de France.
 func buildExamSchedule(begin, end time.Time) examScheduleView {
-	begin, end = begin.Local(), end.Local()
-	d := end.Sub(begin)
+	d := end.Sub(begin) // durée = écart d'instants, indépendant du fuseau
 	now := time.Now()
+	begin, end = begin.In(parisLoc), end.In(parisLoc)
 	return examScheduleView{
 		Date:     begin.Format("02/01/2006"),
 		Start:    begin.Format("15:04"),
