@@ -1,0 +1,294 @@
+project: c02
+display_name: C02
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 5
+- 10
+- 15
+- 20
+- 25
+- 30
+- 35
+- 45
+- 55
+- 65
+- 75
+- 85
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_strcpy.c
+  harness: harness/c02/ex00.c
+  allowed_functions: []
+  tests:
+  - name: mot_simple
+    args:
+    - Hello
+    stdin: ''
+    expected_stdout: Hello
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: ft_strncpy.c
+  harness: harness/c02/ex01.c
+  allowed_functions: []
+  tests:
+  - name: n_plus_grand_que_src
+    args:
+    - Hi
+    - '5'
+    stdin: ''
+    expected_stdout: "Hi\0\0\0"
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: n_plus_petit_que_src
+    args:
+    - Hello world
+    - '5'
+    stdin: ''
+    expected_stdout: Hello
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: ft_str_is_alpha.c
+  harness: harness/c02/ex02.c
+  allowed_functions: []
+  tests:
+  - name: que_des_lettres
+    args:
+    - Hello
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_chiffre
+    args:
+    - Hello1
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex03
+  dir: ex03
+  source_file: ft_str_is_numeric.c
+  harness: harness/c02/ex03.c
+  allowed_functions: []
+  tests:
+  - name: que_des_chiffres
+    args:
+    - '12345'
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_lettre
+    args:
+    - 123a5
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex04
+  dir: ex04
+  source_file: ft_str_is_lowercase.c
+  harness: harness/c02/ex04.c
+  allowed_functions: []
+  tests:
+  - name: que_minuscules
+    args:
+    - hello
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_majuscule
+    args:
+    - Hello
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex05
+  dir: ex05
+  source_file: ft_str_is_uppercase.c
+  harness: harness/c02/ex05.c
+  allowed_functions: []
+  tests:
+  - name: que_majuscules
+    args:
+    - HELLO
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_minuscule
+    args:
+    - HEllO
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex06
+  dir: ex06
+  source_file: ft_str_is_printable.c
+  harness: harness/c02/ex06.c
+  allowed_functions: []
+  tests:
+  - name: affichable
+    args:
+    - Hello!
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_tab
+    args:
+    - "Hel\tlo"
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '1'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex07
+  dir: ex07
+  source_file: ft_strupcase.c
+  harness: harness/c02/ex07.c
+  allowed_functions: []
+  tests:
+  - name: mixte
+    args:
+    - Hello World 42
+    stdin: ''
+    expected_stdout: HELLO WORLD 42
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex08
+  dir: ex08
+  source_file: ft_strlowcase.c
+  harness: harness/c02/ex08.c
+  allowed_functions: []
+  tests:
+  - name: mixte
+    args:
+    - Hello World 42
+    stdin: ''
+    expected_stdout: hello world 42
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex09
+  dir: ex09
+  source_file: ft_strcapitalize.c
+  harness: harness/c02/ex09.c
+  allowed_functions: []
+  tests:
+  - name: exemple_sujet
+    args:
+    - salut, comment tu vas ? 42mots quarante-deux; cinquante+et+un
+    stdin: ''
+    expected_stdout: Salut, Comment Tu Vas ? 42mots Quarante-Deux; Cinquante+Et+Un
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex10
+  dir: ex10
+  source_file: ft_strlcpy.c
+  harness: harness/c02/ex10.c
+  allowed_functions: []
+  tests:
+  - name: size_suffisante
+    args:
+    - Hello
+    - '10'
+    stdin: ''
+    expected_stdout: 5 Hello
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: size_insuffisante_tronque
+    args:
+    - Hello world
+    - '5'
+    stdin: ''
+    expected_stdout: 11 Hell
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex11
+  dir: ex11
+  source_file: ft_putstr_non_printable.c
+  harness: harness/c02/ex11.c
+  allowed_functions:
+  - write
+  tests:
+  - name: exemple_sujet
+    args:
+    - 'Coucou
+
+      tu vas bien ?'
+    stdin: ''
+    expected_stdout: Coucou\0atu vas bien ?
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex12
+  dir: ex12
+  source_file: ft_print_memory.c
+  harness: harness/c02/ex12.c
+  allowed_functions:
+  - write
+  tests:
+  - name: ligne_complete_16_octets
+    args:
+    - '16'
+    stdin: ''
+    expected_stdout: OK
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: size_zero_rien_affiche
+    args:
+    - '0'
+    stdin: ''
+    expected_stdout: OK
+    expected_exit_code: 0
+    timeout_sec: 5
