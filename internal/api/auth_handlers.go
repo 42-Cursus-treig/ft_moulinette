@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
@@ -64,7 +65,16 @@ func (h *handlers) authCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
+// authLogout (POST /auth/logout) flush l'historique en attente de
+// l'utilisateur avant de détruire sa session — sinon les corrections de
+// cette visite resteraient bufferisées en mémoire jusqu'à la fermeture de
+// l'onglet ou l'arrêt du serveur.
 func (h *handlers) authLogout(w http.ResponseWriter, r *http.Request) {
+	if user, ok := h.sessions.FromRequest(r); ok {
+		if err := h.queue.FlushSession(user.Login); err != nil {
+			log.Printf("flush de session à la déconnexion pour %s: %v", user.Login, err)
+		}
+	}
 	h.sessions.Destroy(w, r)
 	http.Redirect(w, r, "/", http.StatusFound)
 }

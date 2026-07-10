@@ -2,6 +2,7 @@ package api
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -99,30 +100,36 @@ func (h *handlers) submitJobUI(w http.ResponseWriter, r *http.Request) {
 
 	user, _ := userFromContext(r.Context())
 
-	if repoURL := strings.TrimSpace(r.FormValue("repo_url")); repoURL != "" {
-		normalizedURL, err := normalizeRepoURL(repoURL)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+	// Si les deux champs se retrouvent remplis (ne devrait plus arriver
+	// depuis la correction du changement d'onglet côté JS, qui vide le
+	// champ quitté — mais on ne prend pas de risque côté serveur aussi) :
+	// l'archive prime. Sélectionner un fichier est un geste plus explicite
+	// qu'une URL qui aurait pu simplement rester dans le champ par erreur.
+	file, header, fileErr := r.FormFile("archive")
+	hasArchive := fileErr == nil && header != nil && header.Filename != ""
+
+	if !hasArchive {
+		if repoURL := strings.TrimSpace(r.FormValue("repo_url")); repoURL != "" {
+			normalizedURL, err := normalizeRepoURL(repoURL)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			job := models.Job{
+				ID:           uuid.NewString(),
+				RepoURL:      normalizedURL,
+				GitToken:     strings.TrimSpace(r.FormValue("github_token")),
+				SourceLabel:  normalizedURL,
+				Owner:        user.Login,
+				Exercise:     exercise,
+				Status:       models.StatusPending,
+				CreatedAt:    time.Now(),
+				ServerBootID: h.serverBootID,
+			}
+			h.queue.Submit(job)
+			h.renderJobRow(w, job)
 			return
 		}
-		job := models.Job{
-			ID:           uuid.NewString(),
-			RepoURL:      normalizedURL,
-			GitToken:     strings.TrimSpace(r.FormValue("github_token")),
-			SourceLabel:  normalizedURL,
-			Owner:        user.Login,
-			Exercise:     exercise,
-			Status:       models.StatusPending,
-			CreatedAt:    time.Now(),
-			ServerBootID: h.serverBootID,
-		}
-		h.queue.Submit(job)
-		h.renderJobRow(w, job)
-		return
-	}
-
-	file, header, err := r.FormFile("archive")
-	if err != nil {
 		http.Error(w, "archive manquante ou invalide", http.StatusBadRequest)
 		return
 	}
@@ -196,4 +203,19 @@ func (h *handlers) renderJobRow(w http.ResponseWriter, job models.Job) {
 	if err := h.tmpl.ExecuteTemplate(w, "job_row", job); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// closeSession (POST /ui/session/close) flush l'historique en attente de
+// l'utilisateur. Appelé côté client via navigator.sendBeacon() sur
+// l'événement pagehide (fermeture d'onglet/navigateur) — best effort :
+// aucun signal navigateur ne garantit un déclenchement à 100% (crash,
+// coupure brutale). Le flush à la déconnexion et à l'arrêt propre du
+// serveur couvrent les autres cas raisonnables. Répond vite et sans corps
+// significatif : sendBeacon n'attend pas de réponse exploitée.
+func (h *handlers) closeSession(w http.ResponseWriter, r *http.Request) {
+	user, _ := userFromContext(r.Context())
+	if err := h.queue.FlushSession(user.Login); err != nil {
+		log.Printf("flush de session à la fermeture pour %s: %v", user.Login, err)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

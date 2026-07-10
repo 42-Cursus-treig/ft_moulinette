@@ -1,0 +1,191 @@
+project: c03
+display_name: C03
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 15
+- 25
+- 40
+- 55
+- 75
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_strcmp.c
+  harness: harness/c03/ex00.c
+  allowed_functions: []
+  tests:
+  - name: difference_simple
+    args:
+    - abc
+    - abd
+    stdin: ''
+    expected_stdout: '-1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: difference_casse
+    args:
+    - Hello
+    - hello
+    stdin: ''
+    expected_stdout: '-32'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: prefixe
+    args:
+    - abc
+    - ab
+    stdin: ''
+    expected_stdout: '99'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: egalite
+    args:
+    - abc
+    - abc
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaines_vides
+    args:
+    - ''
+    - ''
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: ft_strncmp.c
+  harness: harness/c03/ex01.c
+  allowed_functions: []
+  tests:
+  - name: difference_dans_n
+    args:
+    - abcXX
+    - abdYY
+    - '3'
+    stdin: ''
+    expected_stdout: '-1'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: egales_dans_n
+    args:
+    - abcXX
+    - abcYY
+    - '3'
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: n_zero
+    args:
+    - abc
+    - abc
+    - '0'
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: ft_strcat.c
+  harness: harness/c03/ex02.c
+  allowed_functions: []
+  tests:
+  - name: concatenation_simple
+    args:
+    - 'Hello '
+    - World
+    stdin: ''
+    expected_stdout: Hello World
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: dest_vide
+    args:
+    - ''
+    - Test
+    stdin: ''
+    expected_stdout: Test
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex03
+  dir: ex03
+  source_file: ft_strncat.c
+  harness: harness/c03/ex03.c
+  allowed_functions: []
+  tests:
+  - name: limite_stricte
+    args:
+    - 'Hello '
+    - World!!!
+    - '5'
+    stdin: ''
+    expected_stdout: Hello World
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: src_plus_court_que_nb
+    args:
+    - 'Hi '
+    - Bob
+    - '10'
+    stdin: ''
+    expected_stdout: Hi Bob
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex04
+  dir: ex04
+  source_file: ft_strstr.c
+  harness: harness/c03/ex04.c
+  allowed_functions: []
+  tests:
+  - name: trouve
+    args:
+    - Hello World
+    - World
+    stdin: ''
+    expected_stdout: World
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: non_trouve
+    args:
+    - Hello World
+    - xyz
+    stdin: ''
+    expected_stdout: (null)
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: motif_vide
+    args:
+    - Hello
+    - ''
+    stdin: ''
+    expected_stdout: Hello
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex05
+  dir: ex05
+  source_file: ft_strlcat.c
+  harness: harness/c03/ex05.c
+  allowed_functions: []
+  tests:
+  - name: size_suffisante
+    args:
+    - Hello
+    - ' World'
+    - '20'
+    stdin: ''
+    expected_stdout: 11 Hello World
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: size_insuffisante_tronque
+    args:
+    - Hello
+    - ' World'
+    - '8'
+    stdin: ''
+    expected_stdout: 11 Hello W
+    expected_exit_code: 0
+    timeout_sec: 5

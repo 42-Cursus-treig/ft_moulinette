@@ -52,6 +52,9 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.Handle("GET /static/", http.StripPrefix("/static/", static))
 	mux.HandleFunc("POST /ui/jobs", h.requireSectionFragment(visibility.SectionMoulinette, h.submitJobUI))
 	mux.HandleFunc("GET /ui/jobs/{id}", h.requireSectionFragment(visibility.SectionMoulinette, h.jobStatusUI))
+	// Pas de gating par section : flush de l'historique, action de
+	// "ménage" indépendante de la visibilité d'une section particulière.
+	mux.HandleFunc("POST /ui/session/close", h.requireAuthAPI(h.closeSession))
 
 	// Administration.
 	mux.HandleFunc("GET /admin", h.requireAdmin(h.adminPage))

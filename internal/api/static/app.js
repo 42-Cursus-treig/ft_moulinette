@@ -55,12 +55,27 @@
         p.hidden = p.dataset.panel !== target;
       });
 
+      // Vide les champs de l'onglet qu'on quitte : sinon une valeur laissée
+      // par erreur (ex: une URL Git tapée puis abandonnée) reste présente
+      // dans le formulaire et repart avec la soumission suivante, même si
+      // l'utilisateur a changé d'avis et choisi l'autre source.
       if (target === 'git') {
         if (archiveInput) archiveInput.required = false;
         if (repoUrlInput) repoUrlInput.required = true;
+        if (archiveInput) archiveInput.value = '';
+        updateLabel();
       } else {
         if (archiveInput) archiveInput.required = true;
         if (repoUrlInput) repoUrlInput.required = false;
+        if (repoUrlInput) repoUrlInput.value = '';
+        var githubTokenInput = document.getElementById('github-token-input');
+        if (githubTokenInput) githubTokenInput.value = '';
+        if (privateVisibilityPanel) privateVisibilityPanel.hidden = true;
+        visibilityPills.forEach(function (p) {
+          var isPublic = p.dataset.visibility === 'public';
+          p.classList.toggle('active', isPublic);
+          p.setAttribute('aria-selected', isPublic);
+        });
       }
     });
   });
@@ -154,5 +169,16 @@
   document.body.addEventListener('htmx:sendError', function () {
     errorBanner.textContent = 'Erreur réseau.';
     errorBanner.style.display = 'block';
+  });
+
+  // --- Flush de l'historique à la fermeture du site (best-effort) ---
+  // pagehide se déclenche à la fermeture de l'onglet/navigateur, mais aussi
+  // sur toute navigation qui quitte la page (y compris vers une autre page
+  // du site) : dans tous les cas, forcer l'écriture de l'historique en
+  // attente ne pose pas de problème, ça la rend juste visible plus tôt sur
+  // /history. sendBeacon envoie la requête même si la page se ferme avant
+  // qu'une requête classique (fetch/XHR) n'ait eu le temps d'aboutir.
+  window.addEventListener('pagehide', function () {
+    if (navigator.sendBeacon) navigator.sendBeacon('/ui/session/close');
   });
 })();

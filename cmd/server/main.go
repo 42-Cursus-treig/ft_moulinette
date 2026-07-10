@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	// Embarque la base de fuseaux horaires dans le binaire pour que
@@ -143,8 +147,33 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("ft_moulinette écoute sur %s", addr)
-	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{Addr: addr, Handler: router}
+
+	// Arrêt propre sur Ctrl+C / SIGTERM : on flush l'historique en attente
+	// de tous les utilisateurs avant de quitter (limite le risque de perte
+	// par rapport à une coupure brutale, où seul le beacon de fermeture
+	// d'onglet ou la déconnexion aurait pu déclencher le flush).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		log.Printf("ft_moulinette écoute sur %s", addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+	}()
+
+	<-ctx.Done()
+	stop()
+	log.Println("arrêt en cours : flush de l'historique en attente…")
+
+	if err := q.FlushAllSessions(); err != nil {
+		log.Printf("échec du flush final de l'historique: %v", err)
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("arrêt du serveur HTTP: %v", err)
 	}
 }
