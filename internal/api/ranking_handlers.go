@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -56,6 +57,71 @@ func buildExamSchedule(begin, end time.Time) examScheduleView {
 		Duration: fmt.Sprintf("%dh%02d", int(d.Hours()), int(d.Minutes())%60),
 		Active:   !now.Before(begin) && !now.After(end),
 	}
+}
+
+// examCountdownItem est une fenêtre d'exam transmise au client pour le
+// décompte : libellés déjà formatés (heure de France) + instants RFC3339
+// pour que le JS calcule le temps restant contre l'horloge du visiteur.
+type examCountdownItem struct {
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Date     string `json:"date"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	Duration string `json:"duration"`
+	Begin    string `json:"begin"`  // RFC3339
+	Finish   string `json:"finish"` // RFC3339
+}
+
+// examCountdownView alimente l'encadré « statut exam » : la liste complète des
+// fenêtres connues (pour le JS) et l'exam mis en avant au rendu initial.
+type examCountdownView struct {
+	JSON  string
+	Focus *examCountdownItem
+	State string // "upcoming" | "active" | "done"
+}
+
+// buildExamCountdown choisit l'exam pertinent (en cours, sinon le prochain à
+// venir, sinon — tous finis — le dernier) et sérialise toutes les fenêtres.
+func buildExamCountdown(windows []pool.ExamWindowInfo) examCountdownView {
+	if len(windows) == 0 {
+		return examCountdownView{}
+	}
+
+	items := make([]examCountdownItem, len(windows))
+	for i, w := range windows {
+		sched := buildExamSchedule(w.Begin, w.End)
+		items[i] = examCountdownItem{
+			Key:      w.Key,
+			Label:    pool.ExamLabels[w.Key],
+			Date:     sched.Date,
+			Start:    sched.Start,
+			End:      sched.End,
+			Duration: sched.Duration,
+			Begin:    w.Begin.Format(time.RFC3339),
+			Finish:   w.End.Format(time.RFC3339),
+		}
+	}
+
+	now := time.Now()
+	focus, state := len(windows)-1, "done"
+	for i, w := range windows {
+		if now.After(w.End) {
+			continue // exam terminé, on regarde le suivant
+		}
+		if now.Before(w.Begin) {
+			focus, state = i, "upcoming"
+		} else {
+			focus, state = i, "active"
+		}
+		break
+	}
+
+	view := examCountdownView{Focus: &items[focus], State: state}
+	if raw, err := json.Marshal(items); err == nil {
+		view.JSON = string(raw)
+	}
+	return view
 }
 
 var examTabs = []examTab{
@@ -158,9 +224,11 @@ func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 		case "exam":
 			data["ExamRows"], status = h.pool.Exam(month, yearStr, exam)
 			data["RefreshSec"] = int(h.pool.ExamRefresh(exam).Seconds())
-			if begin, end, ok := h.pool.ExamWindow(exam); ok {
-				data["ExamSchedule"] = buildExamSchedule(begin, end)
-			}
+			data["ExamCountdown"] = buildExamCountdown(h.pool.AllExamWindows())
+			// « En cours » ne doit s'afficher que si l'exam est réellement dans
+			// sa fenêtre : un piscineux inscrit tôt est "in_progress" côté API
+			// bien avant le début.
+			data["ExamActive"] = h.pool.ExamActive(exam)
 		case "progress":
 			// Prime le cache score (c'est lui qui alimente les relevés) et
 			// sert l'historique existant sans écran de chargement si possible.

@@ -36,12 +36,17 @@ func contentData(tab, state string) map[string]any {
 		"ProjectRows": []pool.ProjectRow{
 			{Login: "alice", Level: 4.2, Shell: 2, C: 5, Exam: 1, Rush: 1, Total: 9},
 		},
+		"ExamActive": true,
 		"ExamRows": []pool.ExamRow{
-			{Login: "alice", Mark: 80, HasMark: true, Status: "finished", Validated: true},
-			{Login: "bob", Status: "in_progress"},
+			{Login: "alice", Mark: 80, HasMark: true, Status: "finished", Validated: true, Registered: true},
+			{Login: "bob", Status: "in_progress", Registered: true},
+			{Login: "carol", Registered: false},
 		},
 		"Charts":        buildProgressCharts(snaps, "alice"),
 		"SnapshotCount": len(snaps),
+		"ExamCountdown": buildExamCountdown([]pool.ExamWindowInfo{
+			{Key: "00", Begin: time.Now().Add(time.Hour), End: time.Now().Add(5 * time.Hour)},
+		}),
 	}
 }
 
@@ -174,6 +179,44 @@ func TestBuildExamScheduleParisTZ(t *testing.T) {
 	)
 	if winter.Start != "13:00" {
 		t.Errorf("hiver : Start = %q, attendu 13:00 (CET)", winter.Start)
+	}
+}
+
+func TestBuildExamCountdown(t *testing.T) {
+	now := time.Now()
+	mk := func(startOffset, dur time.Duration) pool.ExamWindowInfo {
+		return pool.ExamWindowInfo{Begin: now.Add(startOffset), End: now.Add(startOffset + dur)}
+	}
+
+	// Aucune fenêtre connue : encadré vide.
+	if v := buildExamCountdown(nil); v.Focus != nil || v.JSON != "" {
+		t.Errorf("sans fenêtre : attendu vide, obtenu %+v", v)
+	}
+
+	// Exam 00 fini, Exam 01 en cours, Exam 02 à venir → focus sur 01 (actif).
+	windows := []pool.ExamWindowInfo{
+		{Key: "00", Begin: now.Add(-5 * time.Hour), End: now.Add(-1 * time.Hour)},
+		{Key: "01", Begin: now.Add(-1 * time.Hour), End: now.Add(1 * time.Hour)},
+		{Key: "02", Begin: now.Add(10 * time.Hour), End: now.Add(14 * time.Hour)},
+	}
+	v := buildExamCountdown(windows)
+	if v.State != "active" || v.Focus == nil || v.Focus.Key != "01" {
+		t.Errorf("actif : attendu focus 01/active, obtenu state=%s focus=%+v", v.State, v.Focus)
+	}
+
+	// Tous à venir → focus sur le premier, état upcoming.
+	v = buildExamCountdown([]pool.ExamWindowInfo{mk(time.Hour, time.Hour), mk(3*time.Hour, time.Hour)})
+	if v.State != "upcoming" {
+		t.Errorf("à venir : attendu upcoming, obtenu %s", v.State)
+	}
+
+	// Tous finis → dernier exam, état done.
+	v = buildExamCountdown([]pool.ExamWindowInfo{
+		{Key: "00", Begin: now.Add(-9 * time.Hour), End: now.Add(-5 * time.Hour)},
+		{Key: "final", Begin: now.Add(-4 * time.Hour), End: now.Add(-1 * time.Hour)},
+	})
+	if v.State != "done" || v.Focus.Key != "final" {
+		t.Errorf("terminé : attendu done/final, obtenu state=%s focus=%+v", v.State, v.Focus)
 	}
 }
 

@@ -92,11 +92,12 @@ type ProjectRow struct {
 
 // ExamRow est une ligne du classement en direct d'un exam.
 type ExamRow struct {
-	Login     string
-	Mark      int
-	HasMark   bool
-	Status    string
-	Validated bool
+	Login      string
+	Mark       int
+	HasMark    bool
+	Status     string
+	Validated  bool
+	Registered bool // l'étudiant a le projet exam dans projects_users
 }
 
 // entry est une valeur mise en cache, rafraîchie en arrière-plan : on sert le
@@ -323,6 +324,44 @@ func (s *Service) ExamRefresh(examKey string) time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.examTTLLocked(examKey)
+}
+
+// ExamActive indique si l'exam est actuellement dans sa fenêtre planifiée
+// (d'après l'horaire intra). Sert à ne montrer « En cours » que pendant l'exam.
+func (s *Service) ExamActive(examKey string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.examActiveLocked(examKey)
+}
+
+// ExamKeysOrder est l'ordre chronologique canonique des exams de piscine.
+var ExamKeysOrder = []string{"00", "01", "02", "final"}
+
+// ExamWindowInfo décrit la fenêtre planifiée d'un exam (clé + début/fin).
+type ExamWindowInfo struct {
+	Key   string
+	Begin time.Time
+	End   time.Time
+}
+
+// AllExamWindows renvoie les fenêtres planifiées connues de tous les exams,
+// dans l'ordre chronologique des exams (00, 01, 02, final). Résout (et
+// rafraîchit en arrière-plan) le cache d'horaire ; renvoie nil tant qu'il
+// n'est pas prêt.
+func (s *Service) AllExamWindows() []ExamWindowInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	windows, status := resolveLocked(s, &s.examSched, examSchedTTL, s.fetchExamSchedule)
+	if status.State != StateReady {
+		return nil
+	}
+	var out []ExamWindowInfo
+	for _, key := range ExamKeysOrder {
+		if w, ok := windows[ExamSlugs[key]]; ok {
+			out = append(out, ExamWindowInfo{Key: key, Begin: w.Begin, End: w.End})
+		}
+	}
+	return out
 }
 
 // ExamWindow renvoie la fenêtre planifiée (début, fin) d'un exam d'après
@@ -755,36 +794,47 @@ func (s *Service) fetchExam(slug string, roster []Pooler) ([]ExamRow, error) {
 		return nil, err
 	}
 
-	rows := []ExamRow{}
+	// Inscrits à l'exam : présence d'une entrée projects_users, indexée par
+	// user_id pour croiser avec le roster complet.
+	byUser := make(map[int]projectsUserJSON, len(projectsUsers))
 	for _, pu := range projectsUsers {
-		pooler, ok := byUserID[pu.User.ID]
-		if !ok {
-			continue
-		}
-		row := ExamRow{
-			Login:     pooler.Login,
-			Status:    pu.Status,
-			Validated: pu.Validated != nil && *pu.Validated,
-		}
-		if pu.FinalMark != nil {
-			row.Mark = *pu.FinalMark
-			row.HasMark = true
+		byUser[pu.User.ID] = pu
+	}
+
+	// On liste TOUT le roster : un piscineux sans entrée projects_users pour cet
+	// exam est simplement « non inscrit ».
+	rows := make([]ExamRow, 0, len(roster))
+	for _, pooler := range roster {
+		row := ExamRow{Login: pooler.Login}
+		if pu, ok := byUser[pooler.ID]; ok {
+			row.Registered = true
+			row.Status = pu.Status
+			row.Validated = pu.Validated != nil && *pu.Validated
+			if pu.FinalMark != nil {
+				row.Mark = *pu.FinalMark
+				row.HasMark = true
+			}
 		}
 		rows = append(rows, row)
 	}
 
+	// Tri : inscrits avant non-inscrits, puis par note décroissante, puis login.
 	sort.Slice(rows, func(i, j int) bool {
-		mi, mj := -1, -1
-		if rows[i].HasMark {
-			mi = rows[i].Mark
+		a, b := rows[i], rows[j]
+		if a.Registered != b.Registered {
+			return a.Registered
 		}
-		if rows[j].HasMark {
-			mj = rows[j].Mark
+		mi, mj := -1, -1
+		if a.HasMark {
+			mi = a.Mark
+		}
+		if b.HasMark {
+			mj = b.Mark
 		}
 		if mi != mj {
 			return mi > mj
 		}
-		return rows[i].Login < rows[j].Login
+		return a.Login < b.Login
 	})
 	return rows, nil
 }

@@ -474,24 +474,61 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
 .exam-pill.active { background: var(--pending-bg); color: var(--pending); box-shadow: 3px 3px 0px var(--border); }
 
 .exam-schedule {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1.2rem;
-  padding: 0.7rem 1rem;
+  padding: 0.9rem 1.1rem;
   margin-bottom: 1rem;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.8rem;
   font-weight: 700;
 }
-.exam-sched-item { white-space: nowrap; }
-.exam-schedule.active { background: var(--pending-bg); color: var(--pending); }
-.exam-sched-live {
-  margin-left: auto;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+
+.exam-cd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.6rem;
 }
-.exam-schedule-empty { color: var(--text-muted); font-weight: 500; }
+.exam-cd-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.95rem;
+}
+.exam-cd-timer { font-size: 0.95rem; white-space: nowrap; }
+.exam-cd-timer b { font-variant-numeric: tabular-nums; }
+
+.exam-sched-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.2rem;
+  color: var(--text-muted);
+}
+.exam-sched-item { white-space: nowrap; }
+
+/* États : rouge (à venir), vert (en cours), neutre (terminé). Le liseré
+   (box-shadow de brutal-card) prend la couleur de l'état. */
+.exam-cd-box.state-upcoming { box-shadow: 5px 5px 0px var(--fail); }
+.exam-cd-box.state-upcoming .exam-cd-timer { color: var(--fail); }
+.exam-cd-box.state-active { box-shadow: 5px 5px 0px var(--pass); }
+.exam-cd-box.state-active .exam-cd-timer { color: var(--pass); }
+.exam-cd-box.state-active .exam-cd-label { color: var(--pass); }
+
+.exam-cd-done {
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  padding: 0.4rem 0;
+}
+
+.inscrit-yes { color: var(--pass); font-weight: 700; white-space: nowrap; }
+.inscrit-no { color: var(--fail); font-weight: 700; white-space: nowrap; }
+.ranking-table tr.not-registered td { opacity: 0.5; }
+.ranking-table tr.not-registered .login-link { border-bottom-color: var(--text-muted); }
 
 .ranking-state {
   padding: 2.5rem 2rem;

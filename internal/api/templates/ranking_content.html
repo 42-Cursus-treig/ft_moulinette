@@ -141,16 +141,25 @@
   {{end}}
 
   {{else}}
-  {{with .ExamSchedule}}
-  <div class="exam-schedule brutal-card{{if .Active}} active{{end}}">
-    <span class="exam-sched-item">📅 {{.Date}}</span>
-    <span class="exam-sched-item">🕒 {{.Start}} → {{.End}}</span>
-    <span class="exam-sched-item">⏱️ {{.Duration}}</span>
-    {{if .Active}}<span class="exam-sched-live">🔴 en cours</span>{{end}}
-  </div>
-  {{else}}
-  <div class="exam-schedule brutal-card exam-schedule-empty">
+  {{with .ExamCountdown}}
+  <div class="exam-schedule brutal-card exam-cd-box state-{{.State}}" data-exam-countdown data-exams="{{.JSON}}">
+    {{with .Focus}}
+    {{if eq $.State "done"}}
+    <div class="exam-cd-done">✓ Exam terminé</div>
+    {{else}}
+    <div class="exam-cd-head">
+      <span class="exam-cd-label">{{.Label}}</span>
+      <span class="exam-cd-timer">{{if eq $.State "active"}}🟢 En cours{{else}}🔴 À venir{{end}}</span>
+    </div>
+    <div class="exam-sched-row">
+      <span class="exam-sched-item">📅 {{.Date}}</span>
+      <span class="exam-sched-item">🕒 {{.Start}} → {{.End}}</span>
+      <span class="exam-sched-item">⏱️ {{.Duration}}</span>
+    </div>
+    {{end}}
+    {{else}}
     <span class="exam-sched-item">Horaire de l'exam non disponible pour le moment.</span>
+    {{end}}
   </div>
   {{end}}
   {{if not .ExamRows}}
@@ -159,15 +168,16 @@
   <div class="table-scroll">
   <table class="ranking-table brutal-card">
     <thead>
-      <tr><th>#</th><th>Login</th><th class="num">Note</th><th>Statut</th></tr>
+      <tr><th>#</th><th>Login</th><th>Inscrit</th><th class="num">Note</th><th>Statut</th></tr>
     </thead>
     <tbody>
       {{range $i, $r := .ExamRows}}
-      <tr{{if lt $i 3}} class="podium"{{end}}>
+      <tr{{if and $r.HasMark (lt $i 3)}} class="podium"{{end}}{{if not $r.Registered}} class="not-registered"{{end}}>
         <td class="rank">{{medal $i}}</td>
         <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
+        <td>{{if $r.Registered}}<span class="inscrit-yes">✓ Oui</span>{{else}}<span class="inscrit-no">✗ Non</span>{{end}}</td>
         <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}—{{end}}</td>
-        <td>{{if eq $r.Status "in_progress"}}🏃 En cours{{else if $r.Validated}}✅ Validé{{else if $r.HasMark}}❌ Échoué{{else}}—{{end}}</td>
+        <td>{{if $r.Validated}}✅ Validé{{else if $r.HasMark}}❌ Échoué{{else if and $.ExamActive (eq $r.Status "in_progress")}}🏃 En cours{{else if $r.Registered}}⏳ En attente{{else}}—{{end}}</td>
       </tr>
       {{end}}
     </tbody>
