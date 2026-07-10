@@ -175,16 +175,28 @@ func CurrentSession(now time.Time) (month string, year int, ok bool) {
 	}
 }
 
-// StartDailySnapshots garantit un relevé de progression quotidien même sans
-// visite sur le site : toutes les heures, si une piscine est en cours, le
-// classement score est rafraîchi (ce qui enregistre le relevé du jour).
-func (s *Service) StartDailySnapshots() {
+// poolRefreshTick est le pas de la boucle de rafraîchissement serveur. Il est
+// plus court que les TTL (10 min) pour ne pas rater la fenêtre de péremption ;
+// chaque appel est un no-op tant que le cache n'est pas périmé, donc le coût
+// API réel reste calé sur les TTL.
+const poolRefreshTick = 2 * time.Minute
+
+// StartRefreshLoop garde les classements Score et Projets chauds côté serveur,
+// indépendamment de toute visite : sans lui, les données ne se rafraîchissent
+// que lorsqu'un navigateur poll la page (htmx), donc restent figées la nuit.
+// Chaque tick, si une piscine est en cours, on rappelle Score et Projects : la
+// politique stale-while-revalidate déclenche un fetch en tâche de fond dès que
+// le cache dépasse son TTL. Rappeler Score enregistre aussi le relevé de
+// progression du jour, ce qui garantit un point quotidien même sans visiteur.
+func (s *Service) StartRefreshLoop() {
 	go func() {
 		for {
 			if month, year, ok := CurrentSession(time.Now()); ok {
-				s.Score(month, strconv.Itoa(year))
+				y := strconv.Itoa(year)
+				s.Score(month, y)
+				s.Projects(month, y)
 			}
-			time.Sleep(time.Hour)
+			time.Sleep(poolRefreshTick)
 		}
 	}()
 }

@@ -28,6 +28,17 @@ func main() {
 		log.Fatal("lecture du .env: ", err)
 	}
 
+	// Fuseau par défaut du serveur : heure de France. Ainsi time.Now() et tous
+	// les affichages (horaires d'exam, « MàJ » des classements, logs) sont en
+	// heure locale française sans conversion explicite. La base tzdata est
+	// embarquée dans le binaire (import _ "time/tzdata") pour fonctionner même
+	// dans un conteneur sans paquet tzdata.
+	if loc, err := time.LoadLocation("Europe/Paris"); err == nil {
+		time.Local = loc
+	} else {
+		log.Printf("fuseau Europe/Paris indisponible, on garde %s : %v", time.Local, err)
+	}
+
 	addr := os.Getenv("MOULINETTE_ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -123,6 +134,9 @@ func main() {
 	}
 
 	poolService := pool.NewService(clientID, clientSecret, campusName, poolCachePath, poolHistoryPath)
+	// Rafraîchit Score/Projets côté serveur en continu, sinon les classements
+	// ne se mettent à jour que quand un navigateur a la page ouverte.
+	poolService.StartRefreshLoop()
 
 	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, visibilityStore)
 	if err != nil {
