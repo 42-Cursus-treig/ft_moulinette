@@ -23,6 +23,11 @@ var templateFuncs = template.FuncMap{
 			return fmt.Sprintf("#%02d", i+1)
 		}
 	},
+	// ranknum renvoie le rang sans médaille (#01, #02, …) — utilisé quand la
+	// position ne récompense encore rien (ex. exam sans note).
+	"ranknum": func(i int) string {
+		return fmt.Sprintf("#%02d", i+1)
+	},
 }
 
 func loadTemplates() (*template.Template, error) {

@@ -172,8 +172,8 @@
     </thead>
     <tbody>
       {{range $i, $r := .ExamRows}}
-      <tr{{if and $r.HasMark (lt $i 3)}} class="podium"{{end}}{{if not $r.Registered}} class="not-registered"{{end}}>
-        <td class="rank">{{medal $i}}</td>
+      <tr class="{{if and $r.HasMark (lt $i 3)}}podium{{end}}{{if not $r.Registered}} not-registered{{end}}">
+        <td class="rank">{{if $r.HasMark}}{{medal $i}}{{else}}{{ranknum $i}}{{end}}</td>
         <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
         <td>{{if $r.Registered}}<span class="inscrit-yes">✓ Oui</span>{{else}}<span class="inscrit-no">✗ Non</span>{{end}}</td>
         <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}—{{end}}</td>

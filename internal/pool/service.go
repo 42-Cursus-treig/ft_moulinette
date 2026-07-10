@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"sort"
 	"strconv"
@@ -212,10 +213,26 @@ func (s *Service) sessionLocked(month, year string) *session {
 	return sess
 }
 
+// nightTTL espace les rafraîchissements la nuit (23h → 8h, heure de France :
+// le serveur est en Europe/Paris via time.Local) : les TTL courts passent à
+// une heure pour épargner le quota API quand personne ne regarde. Les TTL des
+// exams ne passent pas par ici (un exam nocturne resterait live).
+func nightTTL(base time.Duration) time.Duration {
+	return nightTTLAt(base, time.Now())
+}
+
+func nightTTLAt(base time.Duration, now time.Time) time.Duration {
+	h := now.Hour()
+	if (h >= 23 || h < 8) && base < time.Hour {
+		return time.Hour
+	}
+	return base
+}
+
 // resolveLocked applique la politique de cache d'une entry : déclenche un
-// fetch asynchrone si nécessaire et renvoie l'état courant. s.mu doit être
-// tenu par l'appelant.
-func resolveLocked[T any](s *Service, e *entry[T], ttl time.Duration, fetch func() (T, error)) (T, Status) {
+// fetch asynchrone si nécessaire et renvoie l'état courant. name identifie la
+// donnée dans les logs. s.mu doit être tenu par l'appelant.
+func resolveLocked[T any](s *Service, name string, e *entry[T], ttl time.Duration, fetch func() (T, error)) (T, Status) {
 	now := time.Now()
 	stale := !e.has || now.Sub(e.at) > ttl
 	retryOK := e.err == nil || now.Sub(e.errAt) > errRetry
@@ -230,7 +247,11 @@ func resolveLocked[T any](s *Service, e *entry[T], ttl time.Duration, fetch func
 			if err != nil {
 				e.err = err
 				e.errAt = time.Now()
+				log.Printf("[pool] échec fetch %s : %v", name, err)
 				return
+			}
+			if e.err != nil {
+				log.Printf("[pool] fetch %s rétabli", name)
 			}
 			e.data, e.has, e.at = data, true, time.Now()
 			e.err = nil
@@ -250,11 +271,11 @@ func resolveLocked[T any](s *Service, e *entry[T], ttl time.Duration, fetch func
 
 // sectionLocked résout d'abord le roster de la session (qui conditionne la
 // disponibilité : pas de piscineux = pas de piscine), puis la section demandée.
-func sectionLocked[T any](s *Service, month, year string, e *entry[T], ttl time.Duration, fetch func(roster []Pooler) (T, error)) (T, Status) {
+func sectionLocked[T any](s *Service, name, month, year string, e *entry[T], ttl time.Duration, fetch func(roster []Pooler) (T, error)) (T, Status) {
 	var zero T
 
 	sess := s.sessionLocked(month, year)
-	roster, status := resolveLocked(s, &sess.roster, rosterTTL, func() ([]Pooler, error) {
+	roster, status := resolveLocked(s, "roster "+month+"-"+year, &sess.roster, nightTTL(rosterTTL), func() ([]Pooler, error) {
 		return s.fetchPoolers(month, year)
 	})
 	if status.State != StateReady {
@@ -263,7 +284,7 @@ func sectionLocked[T any](s *Service, month, year string, e *entry[T], ttl time.
 	if len(roster) == 0 {
 		return zero, Status{State: StateUnavailable, UpdatedAt: status.UpdatedAt}
 	}
-	return resolveLocked(s, e, ttl, func() (T, error) { return fetch(roster) })
+	return resolveLocked(s, name, e, ttl, func() (T, error) { return fetch(roster) })
 }
 
 // Score renvoie le classement par score de coalition (toutes coalitions
@@ -273,7 +294,7 @@ func (s *Service) Score(month, year string) ([]ScoreRow, Status) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sess := s.sessionLocked(month, year)
-	return sectionLocked(s, month, year, &sess.score, scoreTTL, func(roster []Pooler) ([]ScoreRow, error) {
+	return sectionLocked(s, "score", month, year, &sess.score, nightTTL(scoreTTL), func(roster []Pooler) ([]ScoreRow, error) {
 		rows, err := s.fetchScore(roster)
 		if err == nil {
 			s.history.record(month+"-"+year, rows)
@@ -293,7 +314,7 @@ func (s *Service) Projects(month, year string) ([]ProjectRow, Status) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sess := s.sessionLocked(month, year)
-	return sectionLocked(s, month, year, &sess.projects, projectsTTL, s.fetchProjects)
+	return sectionLocked(s, "projets", month, year, &sess.projects, nightTTL(projectsTTL), s.fetchProjects)
 }
 
 // Exam renvoie les notes en direct d'un exam (clé : 00, 01, 02, final).
@@ -311,7 +332,7 @@ func (s *Service) Exam(month, year, examKey string) ([]ExamRow, Status) {
 		e = &entry[[]ExamRow]{}
 		sess.exams[examKey] = e
 	}
-	return sectionLocked(s, month, year, e, s.examTTLLocked(examKey), func(roster []Pooler) ([]ExamRow, error) {
+	return sectionLocked(s, "exam "+examKey, month, year, e, s.examTTLLocked(examKey), func(roster []Pooler) ([]ExamRow, error) {
 		return s.fetchExam(slug, roster)
 	})
 }
@@ -351,7 +372,7 @@ type ExamWindowInfo struct {
 func (s *Service) AllExamWindows() []ExamWindowInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	windows, status := resolveLocked(s, &s.examSched, examSchedTTL, s.fetchExamSchedule)
+	windows, status := resolveLocked(s, "horaire-exams", &s.examSched, examSchedTTL, s.fetchExamSchedule)
 	if status.State != StateReady {
 		return nil
 	}
@@ -361,6 +382,10 @@ func (s *Service) AllExamWindows() []ExamWindowInfo {
 			out = append(out, ExamWindowInfo{Key: key, Begin: w.Begin, End: w.End})
 		}
 	}
+	// Tri chronologique réel : l'ordre des clés (00, 01, 02, final) est une
+	// convention, pas une garantie de l'intra. Le JSON du décompte côté client
+	// hérite de cet ordre.
+	sort.Slice(out, func(i, j int) bool { return out[i].Begin.Before(out[j].Begin) })
 	return out
 }
 
@@ -374,7 +399,7 @@ func (s *Service) ExamWindow(examKey string) (begin, end time.Time, ok bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	windows, status := resolveLocked(s, &s.examSched, examSchedTTL, s.fetchExamSchedule)
+	windows, status := resolveLocked(s, "horaire-exams", &s.examSched, examSchedTTL, s.fetchExamSchedule)
 	if status.State != StateReady {
 		return time.Time{}, time.Time{}, false
 	}
@@ -404,7 +429,7 @@ func (s *Service) examActiveLocked(examKey string) bool {
 	if !ok {
 		return false
 	}
-	windows, status := resolveLocked(s, &s.examSched, examSchedTTL, s.fetchExamSchedule)
+	windows, status := resolveLocked(s, "horaire-exams", &s.examSched, examSchedTTL, s.fetchExamSchedule)
 	if status.State != StateReady {
 		return false
 	}
@@ -713,11 +738,32 @@ func isPoolExamSlug(slug string) bool {
 	return false
 }
 
+// examDoneRetention est la durée pendant laquelle on garde la fenêtre d'un
+// exam terminé : l'encadré affiche « Exam terminé » jusqu'à ce que l'horaire
+// du suivant soit publié, au lieu de retomber sur « horaire non disponible ».
+const examDoneRetention = 12 * time.Hour
+
+// betterWindow renvoie true si w doit remplacer cur comme fenêtre affichée
+// pour un exam : une fenêtre non terminée bat une terminée ; entre deux non
+// terminées on garde celle qui commence le plus tôt ; entre deux terminées,
+// la plus récente.
+func betterWindow(cur, w examWindow, now time.Time) bool {
+	curEnded := cur.End.Before(now)
+	wEnded := w.End.Before(now)
+	if curEnded != wEnded {
+		return curEnded
+	}
+	if wEnded {
+		return w.End.After(cur.End)
+	}
+	return w.Begin.Before(cur.Begin)
+}
+
 // fetchExamSchedule récupère l'horaire des exams de piscine du campus depuis
 // l'API 42 et le réduit à une fenêtre (begin_at/end_at) par slug d'exam. On ne
-// demande que les exams récents ou à venir (fenêtre bornée côté serveur) et on
-// écarte ceux déjà terminés ; en cas de plusieurs sessions pour un même exam,
-// on garde la plus proche (begin_at le plus tôt encore non terminé).
+// demande que les exams récents ou à venir (fenêtre bornée côté serveur) ; les
+// exams terminés depuis moins de examDoneRetention sont conservés pour que
+// « Exam terminé » reste affiché en attendant l'horaire du suivant.
 func (s *Service) fetchExamSchedule() (map[string]examWindow, error) {
 	ctx := context.Background()
 	campusID, err := s.resolveCampusID(ctx)
@@ -734,10 +780,12 @@ func (s *Service) fetchExamSchedule() (map[string]examWindow, error) {
 	}
 
 	now := time.Now()
+	// Borne basse : rétention (12h après end_at) + marge pour la durée de
+	// l'exam lui-même, puisque le filtre API porte sur begin_at.
 	exams, err := getAll[examJSON](ctx, s.c,
 		fmt.Sprintf("/v2/campus/%d/exams", campusID),
 		url.Values{"range[begin_at]": {
-			now.Add(-12*time.Hour).Format(time.RFC3339) + "," +
+			now.Add(-(examDoneRetention + 12*time.Hour)).Format(time.RFC3339) + "," +
 				now.AddDate(0, 2, 0).Format(time.RFC3339),
 		}})
 	if err != nil {
@@ -746,15 +794,15 @@ func (s *Service) fetchExamSchedule() (map[string]examWindow, error) {
 
 	windows := make(map[string]examWindow)
 	for _, ex := range exams {
-		if ex.EndAt.Before(now) {
-			continue // exam déjà terminé
+		if ex.EndAt.Before(now.Add(-examDoneRetention)) {
+			continue // terminé depuis trop longtemps
 		}
 		for _, p := range ex.Projects {
 			if !isPoolExamSlug(p.Slug) {
 				continue
 			}
 			w := examWindow{Begin: ex.BeginAt, End: ex.EndAt}
-			if cur, ok := windows[p.Slug]; !ok || w.Begin.Before(cur.Begin) {
+			if cur, ok := windows[p.Slug]; !ok || betterWindow(cur, w, now) {
 				windows[p.Slug] = w
 			}
 		}
