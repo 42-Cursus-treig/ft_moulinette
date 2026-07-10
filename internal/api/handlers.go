@@ -50,8 +50,9 @@ func (h *handlers) navFlags(user auth.User) map[string]any {
 }
 
 type submitJobRequest struct {
-	RepoURL  string `json:"repo_url"`
-	Exercise string `json:"exercise"`
+	RepoURL     string `json:"repo_url"`
+	GitHubToken string `json:"github_token,omitempty"` // dépôt privé ; jamais renvoyé dans les réponses (Job.GitToken est json:"-")
+	Exercise    string `json:"exercise"`
 }
 
 // submitJob (POST /jobs) enregistre un job et répond immédiatement avec son
@@ -66,6 +67,11 @@ func (h *handlers) submitJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "repo_url et exercise sont requis", http.StatusBadRequest)
 		return
 	}
+	normalizedURL, err := normalizeRepoURL(req.RepoURL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if h.locks.IsLocked(req.Exercise) {
 		http.Error(w, "ce sujet est verrouillé", http.StatusForbidden)
 		return
@@ -74,8 +80,9 @@ func (h *handlers) submitJob(w http.ResponseWriter, r *http.Request) {
 	user, _ := userFromContext(r.Context())
 	job := models.Job{
 		ID:           uuid.NewString(),
-		RepoURL:      req.RepoURL,
-		SourceLabel:  req.RepoURL,
+		RepoURL:      normalizedURL,
+		GitToken:     req.GitHubToken,
+		SourceLabel:  normalizedURL,
 		Owner:        user.Login,
 		Exercise:     req.Exercise,
 		Status:       models.StatusPending,

@@ -26,6 +26,7 @@ type Progress struct {
 type Job struct {
 	ID           string     `json:"id"`
 	RepoURL      string     `json:"repo_url,omitempty"`
+	GitToken     string     `json:"-"`        // jeton d'accès pour un dépôt privé ; jamais exposé ni persisté
 	ArchivePath  string     `json:"-"`        // chemin serveur, jamais exposé au client
 	SourceLabel  string     `json:"source"`   // nom de fichier ou URL, affiché dans l'UI
 	Owner        string     `json:"owner"`    // login 42

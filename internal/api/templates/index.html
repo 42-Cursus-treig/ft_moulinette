@@ -44,8 +44,9 @@
 
     <div class="source-tabs" role="tablist">
       <button type="button" class="source-tab active" data-target="archive" role="tab" aria-selected="true">Archive</button>
-      <button type="button" class="source-tab" data-target="git" role="tab" aria-selected="false">
-        Lien Git<span class="badge-soon">Bientôt</span>
+      <button type="button" class="source-tab" data-target="git" role="tab" aria-selected="false">Lien Git</button>
+      <button type="button" class="source-tab" disabled title="Vogsphere nécessite le VPN 42, pas encore supporté">
+        Lien Vogsphere<span class="badge-soon">Bientôt</span>
       </button>
     </div>
 
@@ -57,8 +58,16 @@
     </div>
 
     <div class="source-panel" data-panel="git" hidden>
-      <input type="text" name="repo_url" class="git-input" placeholder="git@vogsphere.42xxx.fr:vogsphere/intra-uuid-..." disabled>
-      <p class="hint">Bientôt disponible — utilise l'upload d'archive pour l'instant.</p>
+      <div class="repo-visibility-picker" role="tablist">
+        <button type="button" class="repo-visibility-pill active" data-visibility="public" role="tab" aria-selected="true">Dépôt public</button>
+        <button type="button" class="repo-visibility-pill" data-visibility="private" role="tab" aria-selected="false">Dépôt privé</button>
+      </div>
+
+      <input type="text" id="repo-url-input" name="repo_url" class="git-input" placeholder="https://github.com/pseudo/depot">
+
+      <div class="repo-visibility-panel" data-visibility-panel="private" hidden>
+        <input type="password" id="github-token-input" name="github_token" class="git-input" placeholder="Jeton d'accès personnel GitHub" autocomplete="off">
+      </div>
     </div>
 
     <div class="form-row">

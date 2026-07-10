@@ -37,10 +37,11 @@
     });
   });
 
+  // --- Onglets de source (archive / lien git GitHub) ---
   var tabs = document.querySelectorAll('.source-tab');
   var panels = document.querySelectorAll('.source-panel');
   var archiveInput = document.getElementById('archive-input');
-  var submitButton = document.getElementById('submit-button');
+  var repoUrlInput = document.getElementById('repo-url-input');
 
   tabs.forEach(function (tab) {
     tab.addEventListener('click', function () {
@@ -55,14 +56,27 @@
       });
 
       if (target === 'git') {
-        archiveInput.required = false;
-        submitButton.disabled = true;
-        submitButton.title = "Le dépôt par lien Git arrive bientôt — utilise l'upload d'archive pour l'instant.";
+        if (archiveInput) archiveInput.required = false;
+        if (repoUrlInput) repoUrlInput.required = true;
       } else {
-        archiveInput.required = true;
-        submitButton.disabled = false;
-        submitButton.title = '';
+        if (archiveInput) archiveInput.required = true;
+        if (repoUrlInput) repoUrlInput.required = false;
       }
+    });
+  });
+
+  // --- Visibilité du dépôt Git (public / privé) ---
+  var visibilityPills = document.querySelectorAll('.repo-visibility-pill');
+  var privateVisibilityPanel = document.querySelector('[data-visibility-panel="private"]');
+
+  visibilityPills.forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var vis = pill.dataset.visibility;
+      visibilityPills.forEach(function (p) {
+        p.classList.toggle('active', p === pill);
+        p.setAttribute('aria-selected', p === pill);
+      });
+      if (privateVisibilityPanel) privateVisibilityPanel.hidden = vis !== 'private';
     });
   });
 
@@ -104,6 +118,15 @@
   document.body.addEventListener('htmx:afterRequest', function (e) {
     if (e.detail.elt.tagName === 'FORM' && e.detail.successful) {
       if (archiveInput) archiveInput.value = '';
+      if (repoUrlInput) repoUrlInput.value = '';
+      var githubTokenInput = document.getElementById('github-token-input');
+      if (githubTokenInput) githubTokenInput.value = '';
+      if (privateVisibilityPanel) privateVisibilityPanel.hidden = true;
+      visibilityPills.forEach(function (p) {
+        var isPublic = p.dataset.visibility === 'public';
+        p.classList.toggle('active', isPublic);
+        p.setAttribute('aria-selected', isPublic);
+      });
       updateLabel();
       exerciseButtons.forEach(function (b) { b.classList.remove('selected'); });
       if (exerciseValueInput) exerciseValueInput.value = '';

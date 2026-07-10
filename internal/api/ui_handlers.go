@@ -77,8 +77,9 @@ func (h *handlers) history(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// submitJobUI (POST /ui/jobs) stocke l'archive uploadée, soumet le job et
-// renvoie le fragment HTML de sa ligne pour htmx.
+// submitJobUI (POST /ui/jobs) soumet un job depuis une archive uploadée OU
+// un lien GitHub (repo_url), selon ce que le formulaire a rempli. Renvoie
+// le fragment HTML de la ligne pour htmx.
 func (h *handlers) submitJobUI(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
@@ -93,6 +94,30 @@ func (h *handlers) submitJobUI(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.locks.IsLocked(exercise) {
 		http.Error(w, "ce sujet est verrouillé", http.StatusForbidden)
+		return
+	}
+
+	user, _ := userFromContext(r.Context())
+
+	if repoURL := strings.TrimSpace(r.FormValue("repo_url")); repoURL != "" {
+		normalizedURL, err := normalizeRepoURL(repoURL)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		job := models.Job{
+			ID:           uuid.NewString(),
+			RepoURL:      normalizedURL,
+			GitToken:     strings.TrimSpace(r.FormValue("github_token")),
+			SourceLabel:  normalizedURL,
+			Owner:        user.Login,
+			Exercise:     exercise,
+			Status:       models.StatusPending,
+			CreatedAt:    time.Now(),
+			ServerBootID: h.serverBootID,
+		}
+		h.queue.Submit(job)
+		h.renderJobRow(w, job)
 		return
 	}
 
@@ -122,7 +147,6 @@ func (h *handlers) submitJobUI(w http.ResponseWriter, r *http.Request) {
 	}
 	dst.Close()
 
-	user, _ := userFromContext(r.Context())
 	job := models.Job{
 		ID:           uuid.NewString(),
 		ArchivePath:  dst.Name(),

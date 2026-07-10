@@ -254,6 +254,7 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
   color: var(--text-muted);
   border: 3px solid var(--border);
   box-shadow: 5px 5px 0px var(--border);
+  margin-bottom: 1rem;
 }
 .git-input:disabled { cursor: not-allowed; }
 .hint {
@@ -263,6 +264,23 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
   font-weight: 700;
   text-transform: uppercase;
 }
+
+.repo-visibility-picker { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.repo-visibility-pill {
+  padding: 0.4rem 0.9rem;
+  background: var(--surface);
+  border: 3px solid var(--border);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+.repo-visibility-pill:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0px var(--border); }
+.repo-visibility-pill.active { background: var(--accent); color: var(--text); box-shadow: 3px 3px 0px var(--border); }
+.repo-visibility-panel[hidden] { display: none; }
 
 .dropzone {
   padding: 3rem 2rem;
