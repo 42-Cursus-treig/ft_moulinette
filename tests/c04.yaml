@@ -1,0 +1,245 @@
+project: c04
+display_name: C04
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 15
+- 30
+- 50
+- 70
+- 85
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_strlen.c
+  harness: harness/c04/ex00.c
+  allowed_functions: []
+  tests:
+  - name: mot_simple
+    args:
+    - Hello
+    stdin: ''
+    expected_stdout: '5'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: chaine_vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: ft_putstr.c
+  harness: harness/c04/ex01.c
+  allowed_functions:
+  - write
+  tests:
+  - name: mot_simple
+    args:
+    - Hello World
+    stdin: ''
+    expected_stdout: Hello World
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: ft_putnbr.c
+  harness: harness/c04/ex02.c
+  allowed_functions:
+  - write
+  tests:
+  - name: positif
+    args:
+    - '42'
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: negatif
+    args:
+    - '-42'
+    stdin: ''
+    expected_stdout: '-42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: zero
+    args:
+    - '0'
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: int_min
+    args:
+    - '-2147483648'
+    stdin: ''
+    expected_stdout: '-2147483648'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: int_max
+    args:
+    - '2147483647'
+    stdin: ''
+    expected_stdout: '2147483647'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex03
+  dir: ex03
+  source_file: ft_atoi.c
+  harness: harness/c04/ex03.c
+  allowed_functions: []
+  tests:
+  - name: exemple_sujet
+    args:
+    - ' ---+--+1234ab567'
+    stdin: ''
+    expected_stdout: '-1234'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: simple
+    args:
+    - '42'
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: espaces_puis_lettres
+    args:
+    - '  123abc'
+    stdin: ''
+    expected_stdout: '123'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: negatif
+    args:
+    - '-5'
+    stdin: ''
+    expected_stdout: '-5'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: double_plus
+    args:
+    - ++5
+    stdin: ''
+    expected_stdout: '5'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: plus_puis_moins
+    args:
+    - +-5
+    stdin: ''
+    expected_stdout: '-5'
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex04
+  dir: ex04
+  source_file: ft_putnbr_base.c
+  harness: harness/c04/ex04.c
+  allowed_functions:
+  - write
+  tests:
+  - name: decimal
+    args:
+    - '42'
+    - 0123456789
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: decimal_negatif
+    args:
+    - '-42'
+    - 0123456789
+    stdin: ''
+    expected_stdout: '-42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: binaire
+    args:
+    - '10'
+    - '01'
+    stdin: ''
+    expected_stdout: '1010'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: hexadecimal
+    args:
+    - '255'
+    - 0123456789ABCDEF
+    stdin: ''
+    expected_stdout: FF
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: base_exotique_sujet
+    args:
+    - '8'
+    - poneyvif
+    stdin: ''
+    expected_stdout: op
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: base_invalide_taille_1
+    args:
+    - '5'
+    - '0'
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: base_invalide_doublon
+    args:
+    - '5'
+    - '001'
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: base_invalide_signe
+    args:
+    - '5'
+    - 01-3
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex05
+  dir: ex05
+  source_file: ft_atoi_base.c
+  harness: harness/c04/ex05.c
+  allowed_functions: []
+  tests:
+  - name: decimal
+    args:
+    - '42'
+    - 0123456789
+    stdin: ''
+    expected_stdout: '42'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: binaire_negatif
+    args:
+    - '-101'
+    - '01'
+    stdin: ''
+    expected_stdout: '-5'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: espace_signes_multiples
+    args:
+    - ' ++-3'
+    - 0123456789
+    stdin: ''
+    expected_stdout: '-3'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: base_invalide_espace
+    args:
+    - '42'
+    - 0123456 89
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
