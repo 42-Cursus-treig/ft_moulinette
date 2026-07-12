@@ -1,6 +1,6 @@
 // Package sandbox clone le dépôt de l'élève et exécute les tests dans
 // un conteneur Docker isolé : pas de réseau, RAM et CPU limités, timeout
-// par test. C'est la partie sensible du projet — ne jamais compiler ou
+// par test. C'est la partie sensible du projet - ne jamais compiler ou
 // exécuter du code élève directement sur la machine hôte.
 package sandbox
 
@@ -76,7 +76,7 @@ func Run(job models.Job, report func(done, total int)) (*models.Result, error) {
 // de workDir. Cas simple : les exercices sont directement à la racine
 // (upload d'une archive dédiée à ce seul projet, ou dépôt git dédié).
 // Cas mono-repo : l'élève soumet le lien d'un dépôt qui regroupe TOUTE la
-// piscine (un dossier par jour : C00/, C01/, ..., Rush00/, ...) — dans ce
+// piscine (un dossier par jour : C00/, C01/, ..., Rush00/, ...) - dans ce
 // cas, on cherche le sous-dossier dont le nom correspond au projet demandé
 // (ex: "C02" pour job.Exercise="c02") et on l'utilise comme racine à la
 // place. On ne se base jamais sur la seule présence d'un dossier "ex00" :
@@ -93,7 +93,7 @@ func resolveProjectRoot(workDir string, def *testdef.ProjectDef) string {
 }
 
 // hasExerciseFiles vérifie si root contient déjà directement au moins un
-// des fichiers source attendus par le projet — signe que root EST la
+// des fichiers source attendus par le projet - signe que root EST la
 // racine du projet, pas un dossier parent qui l'englobe.
 func hasExerciseFiles(root string, def *testdef.ProjectDef) bool {
 	for _, ex := range def.Exercises {
@@ -166,7 +166,7 @@ func pathExists(p string) bool {
 }
 
 // computeScore applique le barème de la moulinette : le score correspond
-// au nombre d'exercices réussis *consécutivement* depuis le premier — dès
+// au nombre d'exercices réussis *consécutivement* depuis le premier - dès
 // qu'un exercice échoue (quel que soit le statut d'échec), les exercices
 // suivants ne comptent plus, même s'ils sont eux-mêmes réussis. Une triche
 // détectée n'importe où dans le projet écrase tout : score = -42.
@@ -299,12 +299,12 @@ func copyFile(src, dst string) error {
 
 // fetchSource récupère le code source à tester dans un dossier temporaire
 // isolé. Accepte soit une URL git (https://... ou git@...), soit un chemin
-// local (absolu, relatif, ou préfixé "file://") — pratique pour développer
+// local (absolu, relatif, ou préfixé "file://") - pratique pour développer
 // et tester sans avoir à pousser sur GitHub à chaque essai.
 //
 // token, s'il est non vide, sert à cloner un dépôt privé : il est transmis
 // à git via GIT_ASKPASS (un petit script temporaire), jamais concaténé dans
-// l'URL elle-même — sinon il apparaîtrait en clair dans la liste des
+// l'URL elle-même - sinon il apparaîtrait en clair dans la liste des
 // process (`ps aux`) le temps du clone. Le jeton n'est jamais journalisé ;
 // s'il apparaît dans la sortie de git (ex: message d'erreur d'auth), il est
 // systématiquement retiré avant que le message ne remonte à l'appelant.
@@ -343,7 +343,7 @@ func fetchSource(source, token string) (string, error) {
 }
 
 // writeAskPassScript écrit un script exécutable minimal qui répond le jeton
-// à toute invite de git (nom d'utilisateur ou mot de passe) — GitHub
+// à toute invite de git (nom d'utilisateur ou mot de passe) - GitHub
 // accepte un jeton personnel indifféremment comme l'un ou l'autre. Le
 // fichier est créé avec des permissions restreintes (0700, propriétaire
 // seul) et sa suppression est renvoyée à l'appelant via cleanup.
@@ -377,7 +377,7 @@ func shellSingleQuote(s string) string {
 }
 
 // scrubToken retire toute occurrence du jeton d'un texte avant qu'il ne
-// remonte à l'utilisateur (message d'erreur affiché dans l'UI) — le jeton
+// remonte à l'utilisateur (message d'erreur affiché dans l'UI) - le jeton
 // appartient à l'utilisateur lui-même ici, mais autant ne jamais l'afficher
 // en clair côté serveur (logs, etc.) par principe.
 func scrubToken(text, token string) string {

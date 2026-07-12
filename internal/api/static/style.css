@@ -120,6 +120,11 @@ form { margin-bottom: 3rem; }
   display: block;
 }
 
+.theme-toggle svg {
+  width: 20px; height: 20px;
+  flex: none;
+}
+
 .exercise-grid {
   display: flex;
   flex-wrap: wrap;
@@ -163,9 +168,21 @@ form { margin-bottom: 3rem; }
   border: 3px solid var(--border);
   box-shadow: 3px 3px 0px var(--border);
 }
+.admin-row.dragging { opacity: 0.4; }
 .admin-row form { margin: 0; }
-.admin-row-label { font-weight: 700; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+.admin-drag-handle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.admin-drag-handle:active { cursor: grabbing; }
+.admin-row-label { flex: 1; font-weight: 700; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
 .admin-row-id { color: var(--text-muted); font-weight: 500; text-transform: none; }
+.admin-row-actions { display: flex; gap: 0.6rem; flex: none; }
 .admin-btn {
   padding: 0.5rem 1rem;
   font-family: inherit;
@@ -177,6 +194,7 @@ form { margin-bottom: 3rem; }
 }
 .admin-btn.lock { background: var(--fail-bg); color: var(--fail); }
 .admin-btn.unlock { background: var(--pass-bg); color: var(--pass); }
+.admin-btn.delete { background: var(--surface); color: var(--text-muted); }
 .admin-subtitle { font-size: 1.1rem; margin-bottom: 1rem; }
 .admin-hint { text-transform: none; margin-top: -0.6rem; margin-bottom: 1rem; }
 .vis-badge {

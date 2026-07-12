@@ -34,7 +34,7 @@
       {{else if eq .Tab "projects"}}📦 Projets validés
       {{else if eq .Tab "progress"}}📈 Progression
       {{else}}🏁 {{.ExamLabel}}{{end}}
-      — Piscine {{.MonthLabel}} {{.Year}}
+      - Piscine {{.MonthLabel}} {{.Year}}
     </span>
     <span class="ranking-updated" title="Actualisation automatique toutes les {{.RefreshSec}} secondes">
       MàJ {{.UpdatedAt.Format "15:04:05"}}
@@ -107,7 +107,7 @@
 
   {{else if eq .Tab "progress"}}
   {{if not .Charts}}
-  <p class="empty-state">Aucun relevé de progression pour le moment — le premier sera pris automatiquement aujourd'hui.</p>
+  <p class="empty-state">Aucun relevé de progression pour le moment - le premier sera pris automatiquement aujourd'hui.</p>
   {{else}}
   {{range $c := .Charts}}
   <div class="chart-card brutal-card" data-chart="{{$c.DataJSON}}">
@@ -176,8 +176,8 @@
         <td class="rank">{{if $r.HasMark}}{{medal $i}}{{else}}{{ranknum $i}}{{end}}</td>
         <td><a class="login-link" href="https://profile.intra.42.fr/users/{{$r.Login}}" target="_blank" rel="noopener">{{$r.Login}}</a></td>
         <td>{{if $r.Registered}}<span class="inscrit-yes">✓ Oui</span>{{else}}<span class="inscrit-no">✗ Non</span>{{end}}</td>
-        <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}—{{end}}</td>
-        <td>{{if $r.Validated}}✅ Validé{{else if $r.HasMark}}❌ Échoué{{else if and $.ExamActive (eq $r.Status "in_progress")}}🏃 En cours{{else if $r.Registered}}⏳ En attente{{else}}—{{end}}</td>
+        <td class="num">{{if $r.HasMark}}{{$r.Mark}}/100{{else}}-{{end}}</td>
+        <td>{{if $r.Validated}}✅ Validé{{else if $r.HasMark}}❌ Échoué{{else if and $.ExamActive (eq $r.Status "in_progress")}}🏃 En cours{{else if $r.Registered}}⏳ En attente{{else}}-{{end}}</td>
       </tr>
       {{end}}
     </tbody>

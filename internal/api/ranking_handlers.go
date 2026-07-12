@@ -82,7 +82,7 @@ type examCountdownView struct {
 }
 
 // buildExamCountdown choisit l'exam pertinent (en cours, sinon le prochain à
-// venir, sinon — tous finis — le dernier) et sérialise toutes les fenêtres.
+// venir, sinon - tous finis - le dernier) et sérialise toutes les fenêtres.
 func buildExamCountdown(windows []pool.ExamWindowInfo) examCountdownView {
 	if len(windows) == 0 {
 		return examCountdownView{}

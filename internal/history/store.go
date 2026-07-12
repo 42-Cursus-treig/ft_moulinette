@@ -1,6 +1,6 @@
 // Package history persiste l'historique des corrections dans UN fichier
 // JSON par utilisateur (<login>_history.json), plutôt qu'un fichier par
-// job — le volume de fichiers ne grossit plus indéfiniment avec le nombre
+// job - le volume de fichiers ne grossit plus indéfiniment avec le nombre
 // de corrections.
 //
 // Les jobs terminés (passed/failed/error) sont d'abord accumulés dans une
@@ -12,7 +12,7 @@
 // Compromis assumé : un job encore pending/running au moment d'un crash
 // serveur (pas un arrêt propre) n'aura jamais été écrit sur disque et
 // disparaît silencieusement au redémarrage, plutôt que d'apparaître comme
-// "interrompu" — c'est le prix de ne plus écrire à chaque changement de
+// "interrompu" - c'est le prix de ne plus écrire à chaque changement de
 // statut. Un job déjà terminé mais pas encore flush au moment du crash est
 // logé de la même façon.
 package history
@@ -48,7 +48,7 @@ func New(dir string) (*Store, error) {
 }
 
 // RecordFinished ajoute un job terminé à la session en mémoire de son
-// propriétaire. Pas encore écrit sur disque — voir FlushSession.
+// propriétaire. Pas encore écrit sur disque - voir FlushSession.
 func (s *Store) RecordFinished(job models.Job) {
 	if job.Owner == "" {
 		return
@@ -60,7 +60,7 @@ func (s *Store) RecordFinished(job models.Job) {
 
 // FlushSession regroupe les jobs en attente d'un utilisateur avec son
 // fichier existant et réécrit celui-ci en une seule fois. Sans effet s'il
-// n'y a rien en attente pour cet utilisateur — safe à appeler "au cas où"
+// n'y a rien en attente pour cet utilisateur - safe à appeler "au cas où"
 // (ex: à chaque déconnexion, même si l'utilisateur n'a rien soumis).
 func (s *Store) FlushSession(login string) error {
 	if login == "" {
@@ -78,7 +78,7 @@ func (s *Store) FlushSession(login string) error {
 }
 
 // FlushAll flush toutes les sessions en attente, tous utilisateurs
-// confondus — à appeler à l'arrêt propre du serveur pour limiter le risque
+// confondus - à appeler à l'arrêt propre du serveur pour limiter le risque
 // de perte par rapport à une simple coupure.
 func (s *Store) FlushAll() error {
 	s.sessionMu.Lock()
@@ -131,7 +131,7 @@ func (s *Store) appendToUserFile(login string, pending []models.Job) error {
 
 // readJobsFile lit un fichier d'historique utilisateur. Un fichier absent
 // ou corrompu est traité comme vide plutôt que de faire échouer
-// l'appelant — un historique partiel/reparti à zéro vaut mieux qu'un
+// l'appelant - un historique partiel/reparti à zéro vaut mieux qu'un
 // serveur qui refuse de démarrer ou une session qui ne peut plus flush.
 func readJobsFile(path string) ([]models.Job, error) {
 	data, err := os.ReadFile(path)
@@ -149,7 +149,7 @@ func readJobsFile(path string) ([]models.Job, error) {
 }
 
 // LoadAll relit l'historique persisté de TOUS les utilisateurs (un fichier
-// par utilisateur), pour réhydrater la file en mémoire au démarrage —
+// par utilisateur), pour réhydrater la file en mémoire au démarrage -
 // nécessaire pour que /history retrouve les corrections des sessions
 // précédentes après un redémarrage.
 func (s *Store) LoadAll() ([]models.Job, error) {
@@ -175,7 +175,7 @@ func (s *Store) LoadAll() ([]models.Job, error) {
 var unsafeLoginChars = regexp.MustCompile(`[^A-Za-z0-9_-]`)
 
 // sanitizeLogin réduit un login à des caractères sûrs pour un nom de
-// fichier — les logins 42 sont déjà alphanumériques simples en pratique,
+// fichier - les logins 42 sont déjà alphanumériques simples en pratique,
 // mais on ne présume de rien (au cas où un login contiendrait un
 // caractère qui casserait un nom de fichier, voire une tentative de path
 // traversal du genre "../../etc").

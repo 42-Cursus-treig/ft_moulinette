@@ -60,6 +60,8 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.HandleFunc("GET /admin", h.requireAdmin(h.adminPage))
 	mux.HandleFunc("POST /admin/lock", h.requireAdmin(h.adminLock))
 	mux.HandleFunc("POST /admin/unlock", h.requireAdmin(h.adminUnlock))
+	mux.HandleFunc("POST /admin/delete", h.requireAdmin(h.adminDelete))
+	mux.HandleFunc("POST /admin/reorder", h.requireAdmin(h.adminReorder))
 	mux.HandleFunc("POST /admin/visibility", h.requireAdmin(h.adminVisibility))
 
 	// API JSON.

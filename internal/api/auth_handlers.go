@@ -66,7 +66,7 @@ func (h *handlers) authCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 // authLogout (POST /auth/logout) flush l'historique en attente de
-// l'utilisateur avant de détruire sa session — sinon les corrections de
+// l'utilisateur avant de détruire sa session - sinon les corrections de
 // cette visite resteraient bufferisées en mémoire jusqu'à la fermeture de
 // l'onglet ou l'arrêt du serveur.
 func (h *handlers) authLogout(w http.ResponseWriter, r *http.Request) {

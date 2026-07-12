@@ -7,7 +7,7 @@ import (
 )
 
 // loadDotEnv lit un fichier .env (format KEY=VALUE, une variable par ligne)
-// et pose chaque variable dans l'environnement du processus — sauf si elle
+// et pose chaque variable dans l'environnement du processus - sauf si elle
 // y est déjà définie, pour qu'un vrai export shell ou une variable posée
 // par Docker garde toujours la priorité sur le fichier local.
 // Absence du fichier = pas une erreur (cas normal en prod/CI).

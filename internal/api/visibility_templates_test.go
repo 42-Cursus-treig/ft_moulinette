@@ -23,7 +23,7 @@ func navData(isAdmin, moul, classement, history bool, page string) map[string]an
 
 // TestPageTemplatesVisibility rend chaque page membre avec le partiel d'en-tête
 // et vérifie que les liens de section apparaissent/disparaissent selon les
-// drapeaux — les erreurs de champ html/template ne sortent qu'au rendu.
+// drapeaux - les erreurs de champ html/template ne sortent qu'au rendu.
 func TestPageTemplatesVisibility(t *testing.T) {
 	tmpl, err := loadTemplates()
 	if err != nil {

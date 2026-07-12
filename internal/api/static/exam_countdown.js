@@ -1,6 +1,6 @@
 (function () {
   // Encadré « statut exam » : décompte rouge jusqu'au début, vert pendant,
-  // « Exam terminé » après — puis on enchaîne sur l'exam suivant dès que son
+  // « Exam terminé » après - puis on enchaîne sur l'exam suivant dès que son
   // horaire est connu. Les instants (begin/finish) sont des dates absolues
   // (RFC3339) : le calcul du temps restant est donc indépendant du fuseau du
   // visiteur, seul son horloge compte.

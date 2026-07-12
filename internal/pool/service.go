@@ -422,7 +422,7 @@ func (s *Service) examTTLLocked(examKey string) time.Duration {
 // examActiveLocked indique si l'exam est actuellement dans sa fenêtre planifiée
 // d'après l'horaire intra. Il résout (et rafraîchit en arrière-plan) le cache
 // d'horaire ; tant que l'horaire est inconnu on répond false, donc on reste sur
-// le rythme lent — quitte à basculer en rapide dès que l'horaire est chargé.
+// le rythme lent - quitte à basculer en rapide dès que l'horaire est chargé.
 // s.mu doit être tenu.
 func (s *Service) examActiveLocked(examKey string) bool {
 	slug, ok := ExamSlugs[examKey]

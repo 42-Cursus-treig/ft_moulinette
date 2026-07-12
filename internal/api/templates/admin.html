@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ft_moulinette — administration</title>
+<title>ft_moulinette - administration</title>
 <script>
   (function () {
     var stored = localStorage.getItem('ft-moulinette-theme');
@@ -32,45 +32,38 @@
     </div>
   </header>
 
-  <h2 class="admin-subtitle">Visibilité des sections (membres non-admins)</h2>
-  <p class="hint admin-hint">Les administrateurs voient toujours toutes les sections.</p>
-  <div class="admin-list">
-    {{range .Sections}}
-    <div class="admin-row">
-      <span class="admin-row-label">{{.Label}}
-        {{if index $.Visibility .Key}}<span class="vis-badge on">Visible</span>{{else}}<span class="vis-badge off">Masqué</span>{{end}}
-      </span>
-      <form method="post" action="/admin/visibility">
-        <input type="hidden" name="section" value="{{.Key}}">
-        {{if index $.Visibility .Key}}
-        <input type="hidden" name="visible" value="false">
-        <button type="submit" class="admin-btn lock">Masquer</button>
-        {{else}}
-        <input type="hidden" name="visible" value="true">
-        <button type="submit" class="admin-btn unlock">Afficher</button>
-        {{end}}
-      </form>
-    </div>
-    {{end}}
-  </div>
-
-  <h2 class="admin-subtitle">Sujets</h2>
-  <div class="admin-list">
+  <div class="admin-list" id="admin-sortable-list">
     {{range .Exercises}}
-    <div class="admin-row">
+    <div class="admin-row" draggable="true" data-id="{{.ID}}">
+      <span class="admin-drag-handle" title="Glisser pour réordonner" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <circle cx="8" cy="6" r="1.6"></circle>
+          <circle cx="8" cy="12" r="1.6"></circle>
+          <circle cx="8" cy="18" r="1.6"></circle>
+          <circle cx="16" cy="6" r="1.6"></circle>
+          <circle cx="16" cy="12" r="1.6"></circle>
+          <circle cx="16" cy="18" r="1.6"></circle>
+        </svg>
+      </span>
       <span class="admin-row-label">{{.Label}} <span class="admin-row-id">({{.ID}})</span></span>
-      {{if .Locked}}
-      <form method="post" action="/admin/unlock">
-        <input type="hidden" name="id" value="{{.ID}}">
-        <button type="submit" class="admin-btn unlock">Déverrouiller</button>
-      </form>
-      {{else}}
-      <form method="post" action="/admin/lock">
-        <input type="hidden" name="id" value="{{.ID}}">
-        <input type="hidden" name="label" value="{{.Label}}">
-        <button type="submit" class="admin-btn lock">Verrouiller</button>
-      </form>
-      {{end}}
+      <div class="admin-row-actions">
+        {{if .Locked}}
+        <form method="post" action="/admin/unlock">
+          <input type="hidden" name="id" value="{{.ID}}">
+          <button type="submit" class="admin-btn unlock">Déverrouiller</button>
+        </form>
+        {{else}}
+        <form method="post" action="/admin/lock">
+          <input type="hidden" name="id" value="{{.ID}}">
+          <input type="hidden" name="label" value="{{.Label}}">
+          <button type="submit" class="admin-btn lock">Verrouiller</button>
+        </form>
+        {{end}}
+        <form method="post" action="/admin/delete" data-confirm-delete>
+          <input type="hidden" name="id" value="{{.ID}}">
+          <button type="submit" class="admin-btn delete" title="Supprime la décision prise pour ce sujet">Supprimer</button>
+        </form>
+      </div>
     </div>
     {{end}}
   </div>
@@ -81,6 +74,7 @@
     <input type="text" name="label" placeholder="libellé affiché (ex: C02)" required>
     <button type="submit" class="admin-btn lock">Verrouiller</button>
   </form>
+  <script src="/static/admin.js" defer></script>
 </body>
 </html>
 {{end}}

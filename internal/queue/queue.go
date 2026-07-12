@@ -40,7 +40,7 @@ func New(workers int, handler Handler, hist *history.Store) *Queue {
 }
 
 // LoadHistory recharge les jobs persistés sur disque dans la file en
-// mémoire — à appeler une fois au démarrage, avant Start(). Avec le nouveau
+// mémoire - à appeler une fois au démarrage, avant Start(). Avec le nouveau
 // modèle de persistance (un flush groupé par utilisateur, uniquement pour
 // les jobs déjà terminés), un job encore pending/running au moment d'un
 // crash n'a jamais été écrit sur disque : il n'y a donc rien à "marquer en
@@ -65,7 +65,7 @@ func (q *Queue) LoadHistory() error {
 }
 
 // FlushSession force l'écriture immédiate de l'historique en attente d'un
-// utilisateur — appelé à la déconnexion ou à la fermeture du site (best
+// utilisateur - appelé à la déconnexion ou à la fermeture du site (best
 // effort côté navigateur, voir handlers.closeSession).
 func (q *Queue) FlushSession(login string) error {
 	if q.history == nil {
@@ -75,7 +75,7 @@ func (q *Queue) FlushSession(login string) error {
 }
 
 // FlushAllSessions force l'écriture de tout l'historique en attente, tous
-// utilisateurs confondus — utilisé à l'arrêt propre du serveur pour limiter
+// utilisateurs confondus - utilisé à l'arrêt propre du serveur pour limiter
 // le risque de perte par rapport à une coupure brutale.
 func (q *Queue) FlushAllSessions() error {
 	if q.history == nil {
@@ -120,7 +120,7 @@ func (q *Queue) worker() {
 }
 
 // Submit enregistre le job et le pousse dans la file. Un job pending n'est
-// pas encore persisté — seuls les jobs terminés entrent dans l'historique
+// pas encore persisté - seuls les jobs terminés entrent dans l'historique
 // (voir setStatus).
 func (q *Queue) Submit(job models.Job) {
 	job.Status = models.StatusPending
@@ -174,7 +174,7 @@ func (q *Queue) setStatus(id string, status models.Status, result *models.Result
 	q.mu.Unlock()
 
 	// Seuls les jobs arrivés à un statut terminal entrent dans la session
-	// d'historique de leur propriétaire — pending/running restent purement
+	// d'historique de leur propriétaire - pending/running restent purement
 	// en mémoire, visibles en direct via le polling, mais jamais persistés
 	// tels quels.
 	if q.history != nil && jobFinished(status) {

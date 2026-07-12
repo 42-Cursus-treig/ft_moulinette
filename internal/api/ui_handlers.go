@@ -102,7 +102,7 @@ func (h *handlers) submitJobUI(w http.ResponseWriter, r *http.Request) {
 
 	// Si les deux champs se retrouvent remplis (ne devrait plus arriver
 	// depuis la correction du changement d'onglet côté JS, qui vide le
-	// champ quitté — mais on ne prend pas de risque côté serveur aussi) :
+	// champ quitté - mais on ne prend pas de risque côté serveur aussi) :
 	// l'archive prime. Sélectionner un fichier est un geste plus explicite
 	// qu'une URL qui aurait pu simplement rester dans le champ par erreur.
 	file, header, fileErr := r.FormFile("archive")
@@ -207,7 +207,7 @@ func (h *handlers) renderJobRow(w http.ResponseWriter, job models.Job) {
 
 // closeSession (POST /ui/session/close) flush l'historique en attente de
 // l'utilisateur. Appelé côté client via navigator.sendBeacon() sur
-// l'événement pagehide (fermeture d'onglet/navigateur) — best effort :
+// l'événement pagehide (fermeture d'onglet/navigateur) - best effort :
 // aucun signal navigateur ne garantit un déclenchement à 100% (crash,
 // coupure brutale). Le flush à la déconnexion et à l'arrêt propre du
 // serveur couvrent les autres cas raisonnables. Répond vite et sans corps
