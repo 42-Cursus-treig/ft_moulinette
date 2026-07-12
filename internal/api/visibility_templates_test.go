@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
-	"github.com/tristan-reig/ft-moulinette/internal/visibility"
 )
 
 // navData reproduit les drapeaux de navigation injectés par navFlags, plus le
@@ -66,33 +65,42 @@ func TestPageTemplatesVisibility(t *testing.T) {
 	}
 }
 
-// TestAdminTemplateVisibility rend le panel admin avec les interrupteurs de
-// visibilité (états mixtes).
-func TestAdminTemplateVisibility(t *testing.T) {
+// TestAdminTemplate rend le panel admin et vérifie la présence des formulaires de gestion.
+func TestAdminTemplate(t *testing.T) {
 	tmpl, err := loadTemplates()
 	if err != nil {
 		t.Fatalf("chargement des templates: %v", err)
 	}
 
+	// Structure locale temporaire pour simuler les données du modèle
+	type Exercise struct {
+		ID     string
+		Label  string
+		Locked bool
+	}
+
 	data := map[string]any{
-		"User":      auth.User{Login: "treig"},
-		"Exercises": nil,
-		"Sections":  visibility.Sections,
-		"Visibility": map[string]bool{
-			visibility.SectionMoulinette: true,
-			visibility.SectionClassement: false,
-			visibility.SectionHistory:    true,
+		"User": auth.User{Login: "treig"},
+		"Exercises": []Exercise{
+			{ID: "ex01", Label: "Web Server", Locked: false},
+			{ID: "ex02", Label: "Data Sort", Locked: true},
 		},
 	}
+
 	var out strings.Builder
 	if err := tmpl.ExecuteTemplate(&out, "admin", data); err != nil {
 		t.Fatalf("rendu page admin: %v", err)
 	}
 	s := out.String()
-	if !strings.Contains(s, "Visible") || !strings.Contains(s, "Masqué") {
-		t.Errorf("panel admin : badges de visibilité manquants")
+
+	// Vérification des éléments du nouveau design
+	if !strings.Contains(s, `action="/admin/lock"`) {
+		t.Errorf("panel admin : formulaire de verrouillage manquant")
 	}
-	if !strings.Contains(s, `action="/admin/visibility"`) {
-		t.Errorf("panel admin : formulaire de visibilité manquant")
+	if !strings.Contains(s, `action="/admin/unlock"`) {
+		t.Errorf("panel admin : formulaire de déverrouillage manquant")
+	}
+	if !strings.Contains(s, "Web Server") || !strings.Contains(s, "Data Sort") {
+		t.Errorf("panel admin : affichage de la liste des exercices manquant")
 	}
 }
