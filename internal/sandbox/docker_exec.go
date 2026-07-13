@@ -35,7 +35,7 @@ func (b *syncBuffer) String() string {
 // runDocker exécute `docker <args...>` (args commence par "run") avec un nom de
 // conteneur unique et un timeout. SEUL point d'entrée vers `docker run` du
 // package.
-func runDocker(args []string, timeout time.Duration, stdin io.Reader) (output string, timedOut bool, err error) {
+func runDocker(args []string, timeout time.Duration, stdin io.Reader) (stdout, stderr string, timedOut bool, err error) {
 	name := "ftm-" + randomContainerSuffix()
 
 	fullArgs := make([]string, 0, len(args)+2)
@@ -43,16 +43,16 @@ func runDocker(args []string, timeout time.Duration, stdin io.Reader) (output st
 	fullArgs = append(fullArgs, "--name", name)
 	fullArgs = append(fullArgs, args[1:]...)
 
-	var out syncBuffer
+	var outBuf, errBuf syncBuffer
 	cmd := exec.Command("docker", fullArgs...)
-	cmd.Stdout = &out
-	cmd.Stderr = &out
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
 	if stdin != nil {
 		cmd.Stdin = stdin
 	}
 
 	if err := cmd.Start(); err != nil {
-		return "", false, fmt.Errorf("lancement de docker impossible: %w", err)
+		return "", "", false, fmt.Errorf("lancement de docker impossible: %w", err)
 	}
 
 	done := make(chan error, 1)
@@ -61,7 +61,7 @@ func runDocker(args []string, timeout time.Duration, stdin io.Reader) (output st
 	select {
 	case runErr := <-done:
 		killContainer(name)
-		return out.String(), false, runErr
+		return outBuf.String(), errBuf.String(), false, runErr
 
 	case <-time.After(timeout):
 		if cmd.Process != nil {
@@ -69,7 +69,7 @@ func runDocker(args []string, timeout time.Duration, stdin io.Reader) (output st
 		}
 		killContainer(name)
 		go func() { <-done }()
-		return out.String(), true, fmt.Errorf("timeout dépassé (%s)", timeout)
+		return outBuf.String(), errBuf.String(), true, fmt.Errorf("timeout dépassé (%s)", timeout)
 	}
 }
 

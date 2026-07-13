@@ -68,6 +68,7 @@ const (
 	ExerciseTimeout      ExerciseStatus = "timeout"
 	ExerciseNormeError   ExerciseStatus = "norme_error"
 	ExerciseCheating     ExerciseStatus = "cheating"
+	ExerciseLeak         ExerciseStatus = "leak"
 )
 
 func (s ExerciseStatus) Label() string {
@@ -86,6 +87,8 @@ func (s ExerciseStatus) Label() string {
 		return "Norme error"
 	case ExerciseCheating:
 		return "Cheating"
+	case ExerciseLeak:
+		return "Memory leak"
 	default:
 		return string(s)
 	}
@@ -99,7 +102,7 @@ func (s ExerciseStatus) CSSClass() string {
 		return "pass"
 	case ExerciseKO, ExerciseCompileError, ExerciseCheating:
 		return "fail"
-	case ExerciseMissing, ExerciseTimeout, ExerciseNormeError:
+	case ExerciseMissing, ExerciseTimeout, ExerciseNormeError, ExerciseLeak:
 		return "warn"
 	default:
 		return "fail"
@@ -119,4 +122,5 @@ type TestResult struct {
 	Expected string `json:"expected,omitempty"`
 	Got      string `json:"got,omitempty"`
 	Error    string `json:"error,omitempty"`
+	LeakLog  string `json:"leak_log,omitempty"`
 }

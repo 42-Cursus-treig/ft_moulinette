@@ -5,6 +5,7 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -222,6 +223,16 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 	}
 
 	compileFiles := []string{ex.SourceFile}
+	for _, extra := range ex.ExtraSources {
+		if _, err := os.Stat(filepath.Join(exDir, extra)); err != nil {
+			return models.ExerciseResult{
+				Name:   ex.Name,
+				Status: models.ExerciseMissing,
+				Log:    fmt.Sprintf("fichier attendu introuvable : %s", filepath.Join(ex.Dir, extra)),
+			}
+		}
+		compileFiles = append(compileFiles, extra)
+	}
 	if ex.Harness != "" {
 		// Le harnais (main() de test) vit côté serveur, pas dans l'archive de
 		// l'élève : on le copie dans son dossier de compilation le temps du build.
@@ -246,7 +257,8 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 		}
 	}
 
-	forbidden, err := checkForbiddenFunctions(exDir, ex.SourceFile, ex.AllowedFunctions)
+	studentSources := append([]string{ex.SourceFile}, ex.ExtraSources...)
+	forbidden, err := checkForbiddenFunctions(exDir, studentSources, ex.AllowedFunctions)
 	if err != nil {
 		return models.ExerciseResult{
 			Name:   ex.Name,
@@ -265,13 +277,17 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 	exResult := models.ExerciseResult{Name: ex.Name}
 	allPassed := true
 	hasTimeout := false
+	hasLeak := false
 	for _, tc := range ex.Tests {
-		tr := runTest(binPath, tc)
+		tr := runTest(binPath, tc, ex.CheckLeaks)
 		if !tr.Passed {
 			allPassed = false
 		}
 		if tr.Error == timeoutMessage {
 			hasTimeout = true
+		}
+		if tr.LeakLog != "" {
+			hasLeak = true
 		}
 		exResult.TestOutput = append(exResult.TestOutput, tr)
 	}
@@ -279,6 +295,8 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 	switch {
 	case hasTimeout:
 		exResult.Status = models.ExerciseTimeout
+	case hasLeak:
+		exResult.Status = models.ExerciseLeak
 	case allPassed:
 		exResult.Status = models.ExerciseOK
 	default:
@@ -441,14 +459,14 @@ func compile(dir string, sourceFiles ...string) (binPath string, log string, err
 	gccArgs := append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-o", binName}, sourceFiles...)
 	args = append(args, gccArgs...)
 
-	out, _, runErr := runDocker(args, 15*time.Second, nil)
+	out, _, _, runErr := runDocker(args, 15*time.Second, nil)
 	if runErr != nil {
 		return "", out, runErr
 	}
 	return filepath.Join(dir, binName), out, nil
 }
 
-func runTest(binPath string, tc testdef.TestCase) models.TestResult {
+func runTest(binPath string, tc testdef.TestCase, checkLeaks bool) models.TestResult {
 	timeout := defaultTimeout
 	if tc.TimeoutSec > 0 {
 		timeout = time.Duration(tc.TimeoutSec) * time.Second
@@ -463,8 +481,22 @@ func runTest(binPath string, tc testdef.TestCase) models.TestResult {
 		"-v", fmt.Sprintf("%s:/work:ro", dir),
 		"-w", "/work",
 		sandboxImage,
-		"./" + bin,
 	}
+	if checkLeaks {
+		// --error-exitcode=42 : valgrind sort en 42 SI et seulement si une fuite
+		// ou une erreur mémoire est détectée. Le rapport part sur stderr (séparé
+		// du stdout comparé). --errors-for-leak-kinds=definite,indirect : on ne
+		// pénalise que les vraies fuites, pas le "still reachable" (souvent des
+		// allocations one-shot de la libc jamais libérées, hors de contrôle de l'élève).
+		args = append(args,
+			"valgrind",
+			"--leak-check=full",
+			"--errors-for-leak-kinds=definite,indirect",
+			"--error-exitcode=42",
+			"-q",
+		)
+	}
+	args = append(args, "./"+bin)
 	args = append(args, tc.Args...)
 
 	var stdin io.Reader
@@ -472,21 +504,42 @@ func runTest(binPath string, tc testdef.TestCase) models.TestResult {
 		stdin = strings.NewReader(tc.Stdin)
 	}
 
-	got, timedOut, runErr := runDocker(args, timeout, stdin)
-
-	exitOK := (runErr == nil) == (tc.ExpectedExitCode == 0)
-	passed := got == tc.ExpectedOut && exitOK
+	got, errOut, timedOut, runErr := runDocker(args, timeout, stdin)
 
 	tr := models.TestResult{
 		Name:     tc.Name,
-		Passed:   passed,
 		Expected: tc.ExpectedOut,
 		Got:      got,
 	}
+
 	if timedOut {
 		tr.Error = timeoutMessage
-	} else if !exitOK {
+		return tr
+	}
+
+	// Sous valgrind, le code de sortie 42 = fuite détectée. On le traite AVANT
+	// la comparaison fonctionnelle : un programme correct qui fuit reste un échec.
+	if checkLeaks && isLeakExit(runErr) {
+		tr.Passed = false
+		tr.LeakLog = errOut
+		tr.Error = "fuite mémoire détectée"
+		return tr
+	}
+
+	exitOK := (runErr == nil) == (tc.ExpectedExitCode == 0)
+	tr.Passed = got == tc.ExpectedOut && exitOK
+	if !exitOK {
 		tr.Error = fmt.Sprintf("code de sortie inattendu: %v", runErr)
 	}
 	return tr
+}
+
+// isLeakExit vrai si le process s'est terminé avec le code 42, celui qu'on a
+// demandé à valgrind d'utiliser en cas de fuite (--error-exitcode=42).
+func isLeakExit(err error) bool {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode() == 42
+	}
+	return false
 }

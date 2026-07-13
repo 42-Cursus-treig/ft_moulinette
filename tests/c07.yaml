@@ -1,0 +1,216 @@
+project: c07
+display_name: C07
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 15
+- 30
+- 45
+- 60
+- 80
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_strdup.c
+  harness: harness/c07/ex00.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: Chaine simple
+    args:
+    - 'Hello World'
+    stdin: ''
+    expected_stdout: 'Hello World'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Chaine vide
+    args:
+    - ''
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex01
+  dir: ex01
+  source_file: ft_range.c
+  harness: harness/c07/ex01.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: Range positif
+    args:
+    - '1'
+    - '5'
+    stdin: ''
+    expected_stdout: '1 2 3 4'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Min egal max
+    args:
+    - '5'
+    - '5'
+    stdin: ''
+    expected_stdout: 'NULL'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Range negatif
+    args:
+    - '-3'
+    - '2'
+    stdin: ''
+    expected_stdout: '-3 -2 -1 0 1'
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex02
+  dir: ex02
+  source_file: ft_ultimate_range.c
+  harness: harness/c07/ex02.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: Range positif
+    args:
+    - '1'
+    - '5'
+    stdin: ''
+    expected_stdout: '1 2 3 4'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Min egal max
+    args:
+    - '5'
+    - '5'
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex03
+  dir: ex03
+  source_file: ft_strjoin.c
+  harness: harness/c07/ex03.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: Trois chaines
+    args:
+    - '-'
+    - 'a'
+    - 'b'
+    - 'c'
+    stdin: ''
+    expected_stdout: 'a-b-c'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Une seule chaine
+    args:
+    - '-'
+    - 'seul'
+    stdin: ''
+    expected_stdout: 'seul'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Sans chaine
+    args:
+    - '-'
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex04
+  dir: ex04
+  source_file: ft_convert_base.c
+  extra_sources:
+  - ft_convert_base2.c
+  harness: harness/c07/ex04.c
+  allowed_functions:
+  - malloc
+  - free
+  check_leaks: true
+  tests:
+  - name: Decimal vers binaire
+    args:
+    - '42'
+    - '0123456789'
+    - '01'
+    stdin: ''
+    expected_stdout: '101010'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Decimal vers hexa
+    args:
+    - '255'
+    - '0123456789'
+    - '0123456789abcdef'
+    stdin: ''
+    expected_stdout: 'ff'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Nombre negatif
+    args:
+    - '-42'
+    - '0123456789'
+    - '01'
+    stdin: ''
+    expected_stdout: '-101010'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Base invalide
+    args:
+    - '42'
+    - '0'
+    - '01'
+    stdin: ''
+    expected_stdout: 'NULL'
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex05
+  dir: ex05
+  source_file: ft_split.c
+  harness: harness/c07/ex05.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: Split espaces
+    args:
+    - 'hello world foo'
+    - ' '
+    stdin: ''
+    expected_stdout: |-
+      hello
+      world
+      foo
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Separateurs multiples
+    args:
+    - 'a,b;c,d'
+    - ',;'
+    stdin: ''
+    expected_stdout: |-
+      a
+      b
+      c
+      d
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Separateurs consecutifs
+    args:
+    - '  hello   world  '
+    - ' '
+    stdin: ''
+    expected_stdout: |-
+      hello
+      world
+    expected_exit_code: 0
+    timeout_sec: 5

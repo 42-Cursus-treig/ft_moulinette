@@ -1,6 +1,7 @@
 FROM gcc:13-bookworm
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip && \
+RUN apt-get update && apt-get install -y --no-install-recommends \ 
+    python3 python3-pip valgrind && \
     pip3 install --no-cache-dir --break-system-packages norminette && \
     rm -rf /var/lib/apt/lists/*
 

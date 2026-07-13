@@ -26,8 +26,10 @@ type ExerciseSpec struct {
 	Name             string     `yaml:"name"`
 	Dir              string     `yaml:"dir"`
 	SourceFile       string     `yaml:"source_file"`
+	ExtraSources     []string   `yaml:"extra_sources"`
 	Harness          string     `yaml:"harness"`
 	AllowedFunctions []string   `yaml:"allowed_functions"`
+	CheckLeaks       bool       `yaml:"check_leaks"`
 	Tests            []TestCase `yaml:"tests"`
 }
 

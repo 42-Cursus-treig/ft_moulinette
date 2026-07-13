@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -51,7 +52,7 @@ func checkNorm(exDir, sourceFile string, extraRules []string) ([]string, error) 
 	}
 	args = append(args, sourceFile)
 
-	out, _, _ := runDocker(args, 10*time.Second, nil)
+	out, _, _, _ := runDocker(args, 10*time.Second, nil)
 
 	report, err := parseNorminetteJSON(out)
 	if err != nil {
@@ -95,41 +96,9 @@ func parseNorminetteJSON(raw string) (*norminetteReport, error) {
 }
 
 // Fonctions autorisées
-func checkForbiddenFunctions(exDir, sourceFile string, allowed []string) ([]string, error) {
+func checkForbiddenFunctions(exDir string, sourceFiles []string, allowed []string) ([]string, error) {
 	if allowed == nil {
 		return nil, nil
-	}
-
-	objName := "_check.o"
-	compileArgs := []string{
-		"run", "--rm",
-		"--network", "none",
-		"--memory", "128m",
-		"--cpus", "0.5",
-		"--read-only",
-		"-v", fmt.Sprintf("%s:/work", exDir),
-		"-w", "/work",
-		sandboxImage,
-		"gcc", "-fno-builtin", "-fno-stack-protector", "-c", "-o", objName, sourceFile,
-	}
-	if _, _, err := runDocker(compileArgs, 15*time.Second, nil); err != nil {
-		return nil, nil
-	}
-	defer os.Remove(filepath.Join(exDir, objName))
-
-	nmArgs := []string{
-		"run", "--rm",
-		"--network", "none",
-		"--memory", "64m",
-		"--cpus", "0.5",
-		"-v", fmt.Sprintf("%s:/work:ro", exDir),
-		"-w", "/work",
-		sandboxImage,
-		"nm", "-u", objName,
-	}
-	nmOut, _, err := runDocker(nmArgs, 10*time.Second, nil)
-	if err != nil {
-		return nil, fmt.Errorf("analyse des symboles impossible: %w", err)
 	}
 
 	allowedSet := make(map[string]bool, len(allowed))
@@ -137,17 +106,64 @@ func checkForbiddenFunctions(exDir, sourceFile string, allowed []string) ([]stri
 		allowedSet[f] = true
 	}
 
-	var forbidden []string
-	scanner := bufio.NewScanner(strings.NewReader(nmOut))
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) != 2 || fields[0] != "U" {
+	defined := make(map[string]bool)
+	undefined := make(map[string]bool)
+
+	for i, sourceFile := range sourceFiles {
+		objName := fmt.Sprintf("_check_%d.o", i)
+		compileArgs := []string{
+			"run", "--rm",
+			"--network", "none",
+			"--memory", "128m",
+			"--cpus", "0.5",
+			"--read-only",
+			"-v", fmt.Sprintf("%s:/work", exDir),
+			"-w", "/work",
+			sandboxImage,
+			"gcc", "-fno-builtin", "-fno-stack-protector", "-c", "-o", objName, sourceFile,
+		}
+		if _, _, _, err := runDocker(compileArgs, 15*time.Second, nil); err != nil {
+			// Un fichier qui ne compile pas seul (ex: dépend d'un prototype défini
+			// ailleurs) n'est pas un cas de triche : on saute son analyse.
 			continue
 		}
-		symbol := fields[1]
-		if !allowedSet[symbol] {
-			forbidden = append(forbidden, symbol)
+
+		nmArgs := []string{
+			"run", "--rm",
+			"--network", "none",
+			"--memory", "64m",
+			"--cpus", "0.5",
+			"-v", fmt.Sprintf("%s:/work:ro", exDir),
+			"-w", "/work",
+			sandboxImage,
+			"nm", objName,
+		}
+		nmOut, _, _, err := runDocker(nmArgs, 10*time.Second, nil)
+		os.Remove(filepath.Join(exDir, objName))
+		if err != nil {
+			return nil, fmt.Errorf("analyse des symboles impossible: %w", err)
+		}
+
+		scanner := bufio.NewScanner(strings.NewReader(nmOut))
+		for scanner.Scan() {
+			fields := strings.Fields(scanner.Text())
+			// Ligne "U symbol" : 2 champs (pas d'adresse). Ligne définie :
+			// "<adresse> <type> symbol" : 3 champs, type in {T,t,D,d,B,b,...}.
+			if len(fields) == 2 && fields[0] == "U" {
+				undefined[fields[1]] = true
+			} else if len(fields) == 3 {
+				defined[fields[2]] = true
+			}
 		}
 	}
+
+	var forbidden []string
+	for sym := range undefined {
+		if allowedSet[sym] || defined[sym] {
+			continue
+		}
+		forbidden = append(forbidden, sym)
+	}
+	sort.Strings(forbidden) // ordre stable pour l'affichage et les tests
 	return forbidden, nil
 }
