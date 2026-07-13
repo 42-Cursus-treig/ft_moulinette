@@ -24,7 +24,6 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
 	"github.com/tristan-reig/ft-moulinette/internal/sandbox"
-	"github.com/tristan-reig/ft-moulinette/internal/visibility"
 )
 
 func main() {
@@ -99,15 +98,6 @@ func main() {
 		log.Fatal("initialisation des verrous: ", err)
 	}
 
-	visibilityPath := os.Getenv("MOULINETTE_VISIBILITY_FILE")
-	if visibilityPath == "" {
-		visibilityPath = "data/visibility.json"
-	}
-	visibilityStore, err := visibility.New(visibilityPath)
-	if err != nil {
-		log.Fatal("initialisation de la visibilité: ", err)
-	}
-
 	// Pool de workers : chaque worker prend un job dans la queue,
 	// le fait tourner dans la sandbox Docker, et stocke le résultat.
 	workerCount := 3
@@ -142,7 +132,7 @@ func main() {
 	// ne se mettent à jour que quand un navigateur a la page ouverte.
 	poolService.StartRefreshLoop()
 
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, visibilityStore)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService)
 	if err != nil {
 		log.Fatal(err)
 	}

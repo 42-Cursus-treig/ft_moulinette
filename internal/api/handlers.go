@@ -12,7 +12,12 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/models"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
-	"github.com/tristan-reig/ft-moulinette/internal/visibility"
+)
+
+const (
+	SectionMoulinette = "moulinette"
+	SectionClassement = "classement"
+	SectionHistory    = "history"
 )
 
 type handlers struct {
@@ -25,17 +30,16 @@ type handlers struct {
 	locks        *locks.Store
 	adminLogins  map[string]bool
 	pool         *pool.Service
-	visibility   *visibility.Store
 }
 
 func (h *handlers) isAdmin(user auth.User) bool {
 	return h.adminLogins[user.Login]
 }
 
-// sectionVisible indique si un utilisateur a accès à une section : un admin
-// voit tout, un membre selon la configuration de visibilité.
-func (h *handlers) sectionVisible(user auth.User, section string) bool {
-	return h.isAdmin(user) || h.visibility.Visible(section)
+// sectionVisible indique si un utilisateur a accès à une section.
+// Le paramètre de section est ignoré car l'accès est maintenant global pour les admins.
+func (h *handlers) sectionVisible(user auth.User, _ string) bool {
+	return h.isAdmin(user)
 }
 
 // navFlags renvoie les drapeaux de navigation (sections accessibles pour cet
@@ -43,9 +47,9 @@ func (h *handlers) sectionVisible(user auth.User, section string) bool {
 func (h *handlers) navFlags(user auth.User) map[string]any {
 	return map[string]any{
 		"IsAdmin":       h.isAdmin(user),
-		"NavMoulinette": h.sectionVisible(user, visibility.SectionMoulinette),
-		"NavClassement": h.sectionVisible(user, visibility.SectionClassement),
-		"NavHistory":    h.sectionVisible(user, visibility.SectionHistory),
+		"NavMoulinette": h.sectionVisible(user, SectionMoulinette),
+		"NavClassement": h.sectionVisible(user, SectionClassement),
+		"NavHistory":    h.sectionVisible(user, SectionHistory),
 	}
 }
 

@@ -3,8 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/tristan-reig/ft-moulinette/internal/visibility"
 )
 
 // requireAdmin exige une session valide ET un login admin. Renvoie 404
@@ -30,30 +28,12 @@ func (h *handlers) adminPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Exercises":  tiles,
-		"User":       user,
-		"Sections":   visibility.Sections,
-		"Visibility": h.visibility.All(),
+		"Exercises": tiles,
+		"User":      user,
 	}
 	if err := h.tmpl.ExecuteTemplate(w, "admin", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-// adminVisibility (POST /admin/visibility) active ou masque une section pour
-// les membres non-admins.
-func (h *handlers) adminVisibility(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "formulaire invalide", http.StatusBadRequest)
-		return
-	}
-	section := r.FormValue("section")
-	visible := r.FormValue("visible") == "true"
-	if err := h.visibility.Set(section, visible); err != nil {
-		http.Error(w, "réglage de visibilité échoué: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/admin", http.StatusFound)
 }
 
 // adminLock (POST /admin/lock) verrouille un sujet, qu'il ait déjà un YAML ou

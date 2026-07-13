@@ -1,0 +1,115 @@
+project: c06
+display_name: C06
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 20
+- 45 # pas sur
+- 70
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_print_program_name.c
+  allowed_functions:
+  - write
+  tests:
+  - name: Execution simple
+    args: []
+    stdin: ''
+    expected_stdout: |
+      ./a.out
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex01
+  dir: ex01
+  source_file: ft_print_params.c
+  allowed_functions:
+  - write
+  tests:
+  - name: Exemple du sujet
+    args:
+    - test1
+    - test2
+    - test3
+    stdin: ''
+    expected_stdout: |
+      test1
+      test2
+      test3
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Sans arguments
+    args: []
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex02
+  dir: ex02
+  source_file: ft_rev_params.c
+  allowed_functions:
+  - write
+  tests:
+  - name: Trois arguments
+    args:
+    - test1
+    - test2
+    - test3
+    stdin: ''
+    expected_stdout: |
+      test3
+      test2
+      test1
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Sans arguments
+    args: []
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex03
+  dir: ex03
+  source_file: ft_sort_params.c
+  allowed_functions:
+  - write
+  tests:
+  - name: Ordre aleatoire
+    args:
+    - z
+    - a
+    - d
+    - b
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      d
+      z
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Avec majuscules et caracteres speciaux
+    args:
+    - Hello
+    - World
+    - '!'
+    - '42'
+    stdin: ''
+    expected_stdout: |
+      !
+      42
+      Hello
+      World
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Sans arguments
+    args: []
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+  
