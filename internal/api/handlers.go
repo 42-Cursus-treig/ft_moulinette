@@ -38,7 +38,10 @@ func (h *handlers) isAdmin(user auth.User) bool {
 
 // sectionVisible indique si un utilisateur a accès à une section.
 // Le paramètre de section est ignoré car l'accès est maintenant global pour les admins.
-func (h *handlers) sectionVisible(user auth.User, _ string) bool {
+func (h *handlers) sectionVisible(user auth.User, section string) bool {
+	if section == SectionClassement {
+		return true
+	}
 	return h.isAdmin(user)
 }
 
