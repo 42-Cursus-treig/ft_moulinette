@@ -39,6 +39,12 @@
     <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/skills" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Compétences"}}
     </section>
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/promo" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Classement promo"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/exam" hx-trigger="load, every 180s" hx-swap="innerHTML">
+      {{template "dash_loading" "Exams"}}
+    </section>
     <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/evals" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Évaluations"}}
     </section>
@@ -66,14 +72,25 @@
 {{end}}
 
 {{define "dash_error"}}
-<div class="dash-error">
+<div class="dash-error {{.Kind}}">
+  {{if or (eq .Kind "scope") (eq .Kind "auth")}}
+  <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+  </svg>
+  {{else}}
   <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
     <line x1="12" y1="9" x2="12" y2="13"></line>
     <line x1="12" y1="17" x2="12.01" y2="17"></line>
   </svg>
+  {{end}}
   <p>{{.Message}}</p>
+  {{if eq .Kind "auth"}}
+  <form method="post" action="/auth/logout"><button type="submit" class="dash-retry">Se reconnecter</button></form>
+  {{else if ne .Kind "scope"}}
   <button type="button" class="dash-retry" hx-get="{{.Retry}}" hx-target="closest section" hx-swap="innerHTML">Réessayer</button>
+  {{end}}
 </div>
 {{end}}
 
@@ -119,6 +136,8 @@
   <div class="dash-tile"><span class="tile-label">30 derniers jours</span><span class="tile-value">{{.Last30}}</span></div>
   <div class="dash-tile"><span class="tile-label">Record / jour</span><span class="tile-value">{{.BestDay}}</span></div>
   <div class="dash-tile"><span class="tile-label">Jours actifs</span><span class="tile-value">{{.ActiveDays}}</span></div>
+  <div class="dash-tile"><span class="tile-label">Série en cours</span><span class="tile-value">{{.Streak}} j</span></div>
+  <div class="dash-tile"><span class="tile-label">Meilleure série</span><span class="tile-value">{{.BestStreak}} j</span></div>
 </div>
 <div class="hm-scroll">
   <div class="hm-months">{{range .MonthRow}}<span>{{.}}</span>{{end}}</div>
@@ -199,6 +218,7 @@
 
 {{define "dash_evals"}}
 <div class="dash-head"><h2 class="dash-title">Évaluations</h2></div>
+{{if .Note}}<p class="dash-empty">{{.Note}}</p>{{end}}
 <div class="evals-cols">
   <div class="evals-col">
     <h3 class="evals-subtitle">Reçues</h3>
@@ -263,8 +283,64 @@
   </li>
   {{end}}
 </ul>
+{{else if .Note}}
+<p class="dash-empty">{{.Note}}</p>
 {{else}}
 <p class="dash-empty">Aucun mouvement de points pour l'instant — ils bougent à chaque évaluation.</p>
+{{end}}
+{{end}}
+
+{{define "dash_promo"}}
+<div class="dash-head">
+  <h2 class="dash-title">Classement promo</h2>
+  {{if .Coalition}}<span class="dash-badge">{{.Coalition}}</span>{{end}}
+</div>
+{{if .Unavailable}}
+<p class="dash-empty">{{.Reason}}</p>
+{{else}}
+{{if .InRoster}}
+<div class="coa-tiles">
+  <div class="dash-tile"><span class="tile-label">Rang sur {{.Total}}</span><span class="tile-value">{{.Rank}}</span></div>
+  <div class="dash-tile"><span class="tile-label">Score</span><span class="tile-value">{{.Score}}</span></div>
+  <div class="dash-tile"><span class="tile-label">Niveau</span><span class="tile-value">{{.Level}}</span></div>
+</div>
+{{if .Ahead}}<p class="dash-foot">{{.Ahead}}</p>{{end}}
+{{else}}
+<ul class="promo-podium">
+  {{range .Podium}}
+  <li><span class="promo-medal">{{.Medal}}</span><span class="promo-login">{{.Login}}</span><span class="proj-mark">{{.Score}}</span></li>
+  {{end}}
+</ul>
+<p class="dash-foot">Tu n'apparais pas dans le roster de cette session.</p>
+{{end}}
+<a class="dash-link" href="/classement">Voir le classement complet →</a>
+{{end}}
+{{end}}
+
+{{define "dash_exam"}}
+<div class="dash-head">
+  <h2 class="dash-title">Exams</h2>
+  {{if .Available}}
+    {{if eq .State "active"}}<span class="dash-badge online">En cours</span>
+    {{else if eq .State "upcoming"}}<span class="dash-badge accent">À venir</span>
+    {{else}}<span class="dash-badge muted">Terminés</span>{{end}}
+  {{end}}
+</div>
+{{if not .Available}}
+<p class="dash-empty">Horaire des exams indisponible pour l'instant.</p>
+{{else}}
+<div class="exam-focus">
+  <span class="exam-label">{{.Label}}</span>
+  <span class="exam-countdown">{{.Countdown}}</span>
+  <span class="exam-when">{{.Date}} · {{.Hours}}</span>
+</div>
+{{if .Windows}}
+<ul class="exam-windows">
+  {{range .Windows}}
+  <li><span class="promo-login">{{.Label}}</span><span class="points-date">{{.Date}} · {{.Start}} → {{.End}}</span></li>
+  {{end}}
+</ul>
+{{end}}
 {{end}}
 {{end}}
 

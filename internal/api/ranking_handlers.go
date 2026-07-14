@@ -78,7 +78,8 @@ type examCountdownItem struct {
 type examCountdownView struct {
 	JSON  string
 	Focus *examCountdownItem
-	State string // "upcoming" | "active" | "done"
+	State string              // "upcoming" | "active" | "done"
+	Items []examCountdownItem // toutes les fenêtres, pour les rendus serveur
 }
 
 // buildExamCountdown choisit l'exam pertinent (en cours, sinon le prochain à
@@ -117,7 +118,7 @@ func buildExamCountdown(windows []pool.ExamWindowInfo) examCountdownView {
 		break
 	}
 
-	view := examCountdownView{Focus: &items[focus], State: state}
+	view := examCountdownView{Focus: &items[focus], State: state, Items: items}
 	if raw, err := json.Marshal(items); err == nil {
 		view.JSON = string(raw)
 	}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
 	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
+	"github.com/tristan-reig/ft-moulinette/internal/pool"
 )
 
 // dashboardPage (GET /dashboard) rend la coquille de la page : chaque carte
@@ -44,7 +45,13 @@ var dashCards = map[string]func(*handlers, context.Context, auth.User, string) (
 	"points":       (*handlers).dashPoints,
 	"achievements": (*handlers).dashAchievements,
 	"events":       (*handlers).dashEvents,
+	"promo":        (*handlers).dashPromo,
+	"exam":         (*handlers).dashExam,
 }
+
+// dashLocalCards se servent des données déjà en cache côté serveur (service
+// pool) : pas besoin de token 42, elles marchent même si le refresh échoue.
+var dashLocalCards = map[string]bool{"promo": true, "exam": true}
 
 // dashboardCard (GET /ui/dashboard/{card}) rend une carte du dashboard.
 // Les erreurs sortent en 200 avec un panneau « Réessayer » : htmx ne swappe
@@ -58,15 +65,22 @@ func (h *handlers) dashboardCard(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := userFromContext(r.Context())
 
-	tok, err := h.sessions.FreshToken(r, h.oauth)
+	var accessToken string
+	var err error
+	if !dashLocalCards[card] {
+		var tok auth.Token
+		if tok, err = h.sessions.FreshToken(r, h.oauth); err == nil {
+			accessToken = tok.AccessToken
+		}
+	}
 	var data any
 	if err == nil {
 		// Les requêtes 42 d'un utilisateur sont sérialisées à ~2 req/s : avec
-		// neuf cartes lancées en parallèle, les dernières patientent dans la
-		// file. Le timeout couvre la file plus un aller-retour lent, pas plus.
+		// autant de cartes lancées en parallèle, les dernières patientent dans
+		// la file. Le timeout couvre la file plus un aller-retour lent.
 		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 		defer cancel()
-		data, err = build(h, ctx, user, tok.AccessToken)
+		data, err = build(h, ctx, user, accessToken)
 	}
 	if err != nil {
 		h.renderDashError(w, card, err)
@@ -77,28 +91,43 @@ func (h *handlers) dashboardCard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// renderDashError affiche l'état d'erreur d'une carte, avec un message
-// adapté à la cause (panne 42, scope insuffisant, session expirée).
+// renderDashError affiche l'état d'erreur d'une carte, adapté à la cause :
+// une panne se retente (bouton Réessayer), un refus de scope est permanent
+// (aucun bouton — réessayer ne changera jamais rien), une session morte
+// propose de se reconnecter.
 func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error) {
+	kind := "warn"
 	msg := "L'API 42 n'a pas répondu. Elle connaît régulièrement des pannes — réessaie dans un instant."
 	var apiErr *fortytwo.APIError
 	switch {
 	case errors.Is(err, fortytwo.ErrDown):
 		msg = "L'API 42 est en panne en ce moment. Réessaie dans une ou deux minutes."
 	case errors.As(err, &apiErr) && apiErr.Status == http.StatusForbidden:
-		msg = "42 refuse l'accès à cette donnée avec le scope actuel de l'application."
+		kind = "scope"
+		msg = "L'application 42 n'a pas le droit de lire cette donnée (scope « public »). Rien à réessayer — c'est une limite posée côté intra."
 	case errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized:
-		msg = "Ta session 42 n'est plus valide. Déconnecte-toi puis reconnecte-toi."
+		kind = "auth"
+		msg = "Ta session 42 n'est plus valide."
 	case strings.Contains(err.Error(), "session"), strings.Contains(err.Error(), "refresh"):
-		msg = "Ta session a expiré. Déconnecte-toi puis reconnecte-toi pour recharger cette carte."
+		kind = "auth"
+		msg = "Ta session a expiré."
 	}
 	log.Printf("[dashboard] carte %s : %v", card, err)
 	if terr := h.tmpl.ExecuteTemplate(w, "dash_error", map[string]any{
+		"Kind":    kind,
 		"Message": msg,
 		"Retry":   "/ui/dashboard/" + card,
 	}); terr != nil {
 		http.Error(w, terr.Error(), http.StatusInternalServerError)
 	}
+}
+
+// scopeForbidden dit si err est un refus définitif de l'API 42 (403 : le
+// scope de l'app ne couvre pas l'endpoint) — utile aux cartes qui préfèrent
+// dégrader leur contenu plutôt que d'afficher un panneau d'erreur entier.
+func scopeForbidden(err error) bool {
+	var apiErr *fortytwo.APIError
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusForbidden
 }
 
 // bestCursus choisit le cursus à mettre en avant : le plus récemment commencé
@@ -214,6 +243,8 @@ type dashLogtimeView struct {
 	Last30     string
 	BestDay    string
 	ActiveDays int
+	Streak     int // jours actifs consécutifs, série en cours
+	BestStreak int
 	Location   string
 }
 
@@ -261,7 +292,31 @@ func (h *handlers) dashLogtime(ctx context.Context, user auth.User, tok string) 
 	v.Last7 = fmtHours(last7)
 	v.Last30 = fmtHours(last30)
 	v.BestDay = fmtHours(best)
+	v.Streak, v.BestStreak = logStreaks(stats, start, today)
 	return v, nil
+}
+
+// logStreaks calcule la série de jours actifs en cours et la meilleure série
+// de la période. Un aujourd'hui encore vide ne casse pas la série : la
+// journée n'est pas finie.
+func logStreaks(stats map[string]string, start, today time.Time) (current, best int) {
+	todayKey := today.Format("2006-01-02")
+	run := 0
+	for d := start; ; d = d.AddDate(0, 0, 1) {
+		key := d.Format("2006-01-02")
+		if key > todayKey {
+			break
+		}
+		if parseLogHours(stats[key]) > 0 {
+			run++
+			if run > best {
+				best = run
+			}
+		} else if key != todayKey {
+			run = 0
+		}
+	}
+	return run, best
 }
 
 // buildHeatmap découpe la période en colonnes hebdomadaires, avec un libellé
@@ -594,6 +649,7 @@ type dashEvalRow struct {
 type dashEvalsView struct {
 	Received []dashEvalRow // l'utilisateur a été corrigé
 	Given    []dashEvalRow // l'utilisateur a corrigé
+	Note     string        // un des deux volets a échoué : on montre l'autre
 }
 
 func (h *handlers) dashEvals(ctx context.Context, user auth.User, tok string) (any, error) {
@@ -601,16 +657,16 @@ func (h *handlers) dashEvals(ctx context.Context, user auth.User, tok string) (a
 	if err != nil {
 		return nil, err
 	}
-	received, err := h.ft.ScaleTeams(ctx, user.Login, tok, me.ID, "as_corrected")
-	if err != nil {
-		return nil, err
-	}
-	given, err := h.ft.ScaleTeams(ctx, user.Login, tok, me.ID, "as_corrector")
-	if err != nil {
-		return nil, err
+	received, errR := h.ft.ScaleTeams(ctx, user.Login, tok, me.ID, "as_corrected")
+	given, errG := h.ft.ScaleTeams(ctx, user.Login, tok, me.ID, "as_corrector")
+	if errR != nil && errG != nil {
+		return nil, errR
 	}
 
 	v := dashEvalsView{}
+	if errR != nil || errG != nil {
+		v.Note = "Une partie des évaluations n'a pas pu être chargée."
+	}
 	for _, st := range received {
 		v.Received = append(v.Received, evalRow(st, true))
 	}
@@ -666,6 +722,7 @@ type dashPointsView struct {
 	Spark    string // points de la polyline SVG (évolution chronologique)
 	HasSpark bool
 	Moves    []dashPointMove
+	Note     string // historique inaccessible : le solde reste affiché
 }
 
 func (h *handlers) dashPoints(ctx context.Context, user auth.User, tok string) (any, error) {
@@ -675,7 +732,14 @@ func (h *handlers) dashPoints(ctx context.Context, user auth.User, tok string) (
 	}
 	hist, err := h.ft.PointHistorics(ctx, user.Login, tok, me.ID)
 	if err != nil {
-		return nil, err
+		// Le solde vient de /v2/me : autant l'afficher même sans historique.
+		v := dashPointsView{Current: me.CorrectionPoint}
+		if scopeForbidden(err) {
+			v.Note = "L'historique n'est pas lisible avec le scope « public » de l'application — le solde, lui, est à jour."
+		} else {
+			v.Note = "Historique momentanément indisponible (API 42)."
+		}
+		return v, nil
 	}
 
 	v := dashPointsView{Current: me.CorrectionPoint}
@@ -846,6 +910,135 @@ func (h *handlers) dashEvents(ctx context.Context, user auth.User, tok string) (
 		})
 	}
 	return v, nil
+}
+
+// --- Carte classement promo (données locales du service pool) ---
+
+type dashPromoRow struct {
+	Medal string
+	Login string
+	Score string
+}
+
+type dashPromoView struct {
+	Unavailable bool
+	Reason      string
+	InRoster    bool
+	Rank        string
+	Total       int
+	Score       string
+	Level       string
+	Coalition   string
+	Ahead       string         // écart avec le rang au-dessus ("" si premier)
+	Podium      []dashPromoRow // top 3, montré quand l'utilisateur n'est pas classé
+}
+
+// dashPromo situe l'utilisateur dans le classement de la promo, à partir du
+// cache du service pool (rafraîchi en continu côté serveur) : aucun appel à
+// l'API 42, la carte répond instantanément même en pleine panne.
+func (h *handlers) dashPromo(_ context.Context, user auth.User, _ string) (any, error) {
+	v := dashPromoView{}
+	if h.pool == nil {
+		v.Unavailable, v.Reason = true, "Service de classement inactif."
+		return v, nil
+	}
+	month, year, ok := pool.CurrentSession(time.Now())
+	if !ok {
+		v.Unavailable, v.Reason = true, "Pas de piscine en cours."
+		return v, nil
+	}
+	rows, _ := h.pool.Score(month, strconv.Itoa(year))
+	if len(rows) == 0 {
+		v.Unavailable, v.Reason = true, "Classement pas encore chargé — repasse dans une minute."
+		return v, nil
+	}
+
+	sorted := append([]pool.ScoreRow(nil), rows...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Score > sorted[j].Score })
+	v.Total = len(sorted)
+	for i, row := range sorted {
+		if row.Login != user.Login {
+			continue
+		}
+		v.InRoster = true
+		v.Rank = "#" + strconv.Itoa(i+1)
+		v.Score = fmtInt(row.Score)
+		v.Level = fmt.Sprintf("%.2f", row.Level)
+		v.Coalition = row.Coalition
+		if i > 0 {
+			v.Ahead = fmt.Sprintf("à %s pts du rang au-dessus", fmtInt(sorted[i-1].Score-row.Score))
+		}
+		break
+	}
+	if !v.InRoster {
+		medals := []string{"🥇", "🥈", "🥉"}
+		for i := 0; i < len(sorted) && i < 3; i++ {
+			v.Podium = append(v.Podium, dashPromoRow{Medal: medals[i], Login: sorted[i].Login, Score: fmtInt(sorted[i].Score)})
+		}
+	}
+	return v, nil
+}
+
+// --- Carte exams (horaire local du service pool) ---
+
+type dashExamView struct {
+	Available bool
+	State     string // upcoming | active | done
+	Label     string
+	Date      string
+	Hours     string // « 08:00 → 12:00 (4h00) »
+	Countdown string
+	Windows   []examCountdownItem
+}
+
+func (h *handlers) dashExam(_ context.Context, _ auth.User, _ string) (any, error) {
+	v := dashExamView{}
+	if h.pool == nil {
+		return v, nil
+	}
+	cd := buildExamCountdown(h.pool.AllExamWindows())
+	if cd.Focus == nil {
+		return v, nil
+	}
+	v.Available = true
+	v.State = cd.State
+	v.Label = cd.Focus.Label
+	v.Date = cd.Focus.Date
+	v.Hours = fmt.Sprintf("%s → %s (%s)", cd.Focus.Start, cd.Focus.End, cd.Focus.Duration)
+	v.Windows = cd.Items
+
+	begin, _ := time.Parse(time.RFC3339, cd.Focus.Begin)
+	end, _ := time.Parse(time.RFC3339, cd.Focus.Finish)
+	switch cd.State {
+	case "active":
+		v.Countdown = "se termine " + humanUntil(end)
+	case "upcoming":
+		v.Countdown = humanUntil(begin)
+	default:
+		v.Countdown = "tous les exams sont passés"
+	}
+	return v, nil
+}
+
+// humanUntil rend un délai lisible : « dans 2 j 05 h », « dans 3 h 12 min »…
+// Arrondi à la minute, sinon « dans 1 h 35 min » s'afficherait « 1 h 34 »
+// sitôt la première nanoseconde écoulée.
+func humanUntil(t time.Time) string {
+	d := time.Until(t)
+	if d <= 0 {
+		return "imminent"
+	}
+	mins := int(d.Round(time.Minute) / time.Minute)
+	switch {
+	case mins >= 24*60:
+		return fmt.Sprintf("dans %d j %02d h", mins/(24*60), (mins%(24*60))/60)
+	case mins >= 60:
+		return fmt.Sprintf("dans %d h %02d min", mins/60, mins%60)
+	case mins >= 1:
+		return fmt.Sprintf("dans %d min", mins)
+	default:
+		return "dans moins d'une minute"
+	}
 }
 
 // --- Helpers de formatage français ---

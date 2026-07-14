@@ -1334,6 +1334,61 @@ pre {
   color: var(--text-muted);
 }
 
+/* Carte classement promo. */
+.dash-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 2px solid var(--accent);
+}
+.dash-link:hover { color: var(--text); border-color: var(--text); }
+.promo-podium { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.promo-podium li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  padding: 0.45rem 0.7rem;
+}
+.promo-medal { flex: none; }
+.promo-login { flex: 1; min-width: 0; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.88rem; }
+
+/* Carte exams. */
+.exam-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 3px solid var(--border);
+  background: var(--bg);
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+}
+.exam-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.exam-countdown {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  color: var(--accent);
+}
+.exam-when { font-size: 0.85rem; color: var(--text-muted); }
+.exam-windows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.exam-windows li { display: flex; justify-content: space-between; gap: 0.7rem; align-items: baseline; }
+
+/* Erreurs « définitives » (scope, session) : cadenas sobre, pas d'alarme. */
+.dash-error.scope svg, .dash-error.auth svg { color: var(--text-muted); }
+
 /* Carte événements. */
 .event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .event-row {

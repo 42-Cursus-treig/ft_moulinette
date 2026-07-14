@@ -239,6 +239,9 @@ func TestDashboardCards(t *testing.T) {
 		{"points", []string{"5 pts", "polyline", "Défense planifiée", "-1"}},
 		{"achievements", []string{"All Star", "Challenge", "3 débloqués"}},
 		{"events", []string{"Meetup Piscine", "Meetup", "Amphi", "2 inscriptions"}},
+		// Sans service pool (tests), les cartes locales dégradent proprement.
+		{"promo", []string{"Service de classement inactif"}},
+		{"exam", []string{"Horaire des exams indisponible"}},
 	}
 	for _, tc := range cases {
 		rec := getWithCookie(mux, "/ui/dashboard/"+tc.card, ck)
@@ -343,7 +346,109 @@ func TestDashboardPanne42(t *testing.T) {
 	}
 }
 
+// newScope403Mock sert un /v2/me valide et refuse tout le reste en 403,
+// comme le fait l'API 42 quand le scope de l'app ne couvre pas un endpoint.
+func newScope403Mock(t *testing.T) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v2/me", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockMeJSON)
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+	})
+	return httptest.NewServer(mux)
+}
+
+// TestDashboardScopeInterdit : un 403 de scope est définitif — le panneau
+// prend la forme « cadenas », sans bouton Réessayer qui ne servirait à rien.
+func TestDashboardScopeInterdit(t *testing.T) {
+	srv := newScope403Mock(t)
+	defer srv.Close()
+	h, mux := newDashHandlers(t, srv.URL)
+	ck := loginAs(t, h, validToken())
+
+	rec := getWithCookie(mux, "/ui/dashboard/evals", ck)
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, `dash-error scope`) {
+		t.Fatalf("evals en 403 : code=%d, panneau scope attendu : %s", rec.Code, body)
+	}
+	if strings.Contains(body, "Réessayer") {
+		t.Errorf("evals en 403 : le bouton Réessayer ne doit pas apparaître")
+	}
+}
+
+// TestDashboardPointsSansHistorique : l'historique en 403 ne condamne pas la
+// carte — le solde (issu de /v2/me) reste affiché avec une note.
+func TestDashboardPointsSansHistorique(t *testing.T) {
+	srv := newScope403Mock(t)
+	defer srv.Close()
+	h, mux := newDashHandlers(t, srv.URL)
+	ck := loginAs(t, h, validToken())
+
+	rec := getWithCookie(mux, "/ui/dashboard/points", ck)
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, "5 pts") {
+		t.Fatalf("points sans historique : code=%d, solde attendu : %s", rec.Code, body)
+	}
+	if !strings.Contains(body, "le solde, lui, est à jour") {
+		t.Errorf("points sans historique : note de dégradation absente")
+	}
+	if strings.Contains(body, "Réessayer") {
+		t.Errorf("points sans historique : la carte ne doit pas être en erreur")
+	}
+}
+
 // --- Tests unitaires des helpers ---
+
+func TestLogStreaks(t *testing.T) {
+	today := time.Date(2026, 7, 14, 15, 0, 0, 0, time.Local)
+	start := today.AddDate(0, 0, -10)
+	day := func(offset int) string { return today.AddDate(0, 0, offset).Format("2006-01-02") }
+
+	// Série de 3 (J-6..J-4), trou, série de 2 (J-2, J-1), aujourd'hui vide :
+	// la série en cours tient (la journée n'est pas finie), la meilleure est 3.
+	stats := map[string]string{
+		day(-6): "02:00:00.0", day(-5): "03:00:00.0", day(-4): "01:00:00.0",
+		day(-2): "05:00:00.0", day(-1): "04:00:00.0",
+	}
+	current, best := logStreaks(stats, start, today)
+	if current != 2 || best != 3 {
+		t.Errorf("current=%d best=%d, attendu 2 et 3", current, best)
+	}
+
+	// Aujourd'hui pointé : la série continue.
+	stats[day(0)] = "01:00:00.0"
+	current, best = logStreaks(stats, start, today)
+	if current != 3 || best != 3 {
+		t.Errorf("avec aujourd'hui : current=%d best=%d, attendu 3 et 3", current, best)
+	}
+
+	// Aucune activité.
+	current, best = logStreaks(map[string]string{}, start, today)
+	if current != 0 || best != 0 {
+		t.Errorf("sans activité : current=%d best=%d, attendu 0 et 0", current, best)
+	}
+}
+
+func TestHumanUntil(t *testing.T) {
+	now := time.Now()
+	cases := []struct {
+		at   time.Time
+		want string
+	}{
+		{now.Add(50*time.Hour + 30*time.Minute), "dans 2 j 02 h"},
+		{now.Add(95 * time.Minute), "dans 1 h 35 min"},
+		{now.Add(5*time.Minute + 10*time.Second), "dans 5 min"},
+		{now.Add(-time.Second), "imminent"},
+	}
+	for _, c := range cases {
+		if got := humanUntil(c.at); got != c.want {
+			t.Errorf("humanUntil(+%v) = %q, attendu %q", time.Until(c.at).Round(time.Minute), got, c.want)
+		}
+	}
+}
 
 func TestParseLogHours(t *testing.T) {
 	cases := []struct {
