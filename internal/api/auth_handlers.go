@@ -74,9 +74,9 @@ func (h *handlers) authCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "création de session échouée", http.StatusInternalServerError)
 		return
 	}
-	// Le dashboard est la seule page ouverte à tous les membres quelles que
-	// soient les sections activées : c'est l'atterrissage naturel post-login.
-	http.Redirect(w, r, "/dashboard", http.StatusFound)
+	// L'atterrissage post-login reste l'outil moulinette ; le dashboard se
+	// rejoint depuis le badge de login dans l'en-tête.
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // authLogout (POST /auth/logout) flush l'historique en attente de
