@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
+	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/models"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
@@ -30,6 +31,7 @@ type handlers struct {
 	locks        *locks.Store
 	adminLogins  map[string]bool
 	pool         *pool.Service
+	ft           *fortytwo.Client
 }
 
 func (h *handlers) isAdmin(user auth.User) bool {

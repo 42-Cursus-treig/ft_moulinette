@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // Config regroupe les identifiants de l'application déclarée sur l'intra 42.
@@ -26,6 +27,12 @@ func (c Config) baseURL() string {
 	return "https://api.intra.42.fr"
 }
 
+// APIBaseURL expose la base de l'API 42 aux autres packages (le client du
+// dashboard doit viser le même serveur que le flux OAuth, mock compris).
+func (c Config) APIBaseURL() string {
+	return c.baseURL()
+}
+
 // AuthorizeURL construit l'URL de démarrage du flux OAuth. state = protection
 // CSRF, à revérifier au retour sur /auth/callback.
 func (c Config) AuthorizeURL(state string) string {
@@ -38,38 +45,80 @@ func (c Config) AuthorizeURL(state string) string {
 	return c.baseURL() + "/oauth/authorize?" + v.Encode()
 }
 
-type tokenResponse struct {
-	AccessToken string `json:"access_token"`
+// Token est le jeu de jetons OAuth d'un utilisateur : l'access token expire
+// vite (2 h chez 42), le refresh token permet d'en obtenir un neuf sans
+// refaire tout le parcours de connexion.
+type Token struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresAt    time.Time
 }
 
-// Exchange échange le code d'autorisation contre un access token.
-func (c Config) Exchange(code string) (string, error) {
+// Usable dit si l'access token peut encore servir, avec une marge : un token
+// qui expire dans quelques secondes serait refusé le temps d'arriver chez 42.
+func (t Token) Usable() bool {
+	return t.AccessToken != "" && time.Now().Before(t.ExpiresAt.Add(-30*time.Second))
+}
+
+type tokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+}
+
+// requestToken exécute un POST /oauth/token et normalise la réponse.
+func (c Config) requestToken(form url.Values) (*Token, error) {
+	resp, err := http.PostForm(c.baseURL()+"/oauth/token", form)
+	if err != nil {
+		return nil, fmt.Errorf("requête vers l'API 42 impossible: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token refusé par l'API 42 (%d): %s", resp.StatusCode, body)
+	}
+
+	var tr tokenResponse
+	if err := json.Unmarshal(body, &tr); err != nil {
+		return nil, fmt.Errorf("réponse de l'API 42 illisible: %w", err)
+	}
+	if tr.AccessToken == "" {
+		return nil, fmt.Errorf("l'API 42 n'a renvoyé aucun access_token")
+	}
+	if tr.ExpiresIn <= 0 {
+		tr.ExpiresIn = 7200 // durée de vie par défaut des tokens 42
+	}
+	return &Token{
+		AccessToken:  tr.AccessToken,
+		RefreshToken: tr.RefreshToken,
+		ExpiresAt:    time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second),
+	}, nil
+}
+
+// Exchange échange le code d'autorisation contre un jeu de tokens.
+func (c Config) Exchange(code string) (*Token, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", c.ClientID)
 	form.Set("client_secret", c.ClientSecret)
 	form.Set("code", code)
 	form.Set("redirect_uri", c.RedirectURL)
+	return c.requestToken(form)
+}
 
-	resp, err := http.PostForm(c.baseURL()+"/oauth/token", form)
-	if err != nil {
-		return "", fmt.Errorf("requête vers l'API 42 impossible: %w", err)
+// Refresh obtient un nouvel access token à partir du refresh token : une
+// session moulinette (7 jours) vit bien plus longtemps qu'un token 42 (2 h).
+func (c Config) Refresh(refreshToken string) (*Token, error) {
+	if refreshToken == "" {
+		return nil, fmt.Errorf("aucun refresh token : reconnexion nécessaire")
 	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("échange du code refusé par l'API 42 (%d): %s", resp.StatusCode, body)
-	}
-
-	var tr tokenResponse
-	if err := json.Unmarshal(body, &tr); err != nil {
-		return "", fmt.Errorf("réponse de l'API 42 illisible: %w", err)
-	}
-	if tr.AccessToken == "" {
-		return "", fmt.Errorf("l'API 42 n'a renvoyé aucun access_token")
-	}
-	return tr.AccessToken, nil
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", refreshToken)
+	form.Set("client_id", c.ClientID)
+	form.Set("client_secret", c.ClientSecret)
+	return c.requestToken(form)
 }
 
 // User est le sous-ensemble du profil 42 (/v2/me) utilisé ici.

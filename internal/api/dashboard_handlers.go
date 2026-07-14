@@ -1,0 +1,927 @@
+package api
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"html/template"
+	"log"
+	"math"
+	"net/http"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/tristan-reig/ft-moulinette/internal/auth"
+	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
+)
+
+// dashboardPage (GET /dashboard) rend la coquille de la page : chaque carte
+// se charge ensuite en htmx (hx-trigger="load"), pour que les latences et
+// pannes de l'API 42 ne bloquent jamais la page — une carte en échec propose
+// « Réessayer », les autres vivent leur vie.
+func (h *handlers) dashboardPage(w http.ResponseWriter, r *http.Request) {
+	user, _ := userFromContext(r.Context())
+	data := h.navFlags(user)
+	data["User"] = user
+	data["Page"] = "dashboard"
+	if err := h.tmpl.ExecuteTemplate(w, "dashboard", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// dashCards associe chaque carte à son constructeur de données.
+// Clé = segment d'URL (/ui/dashboard/{card}) = suffixe du template (dash_{card}).
+var dashCards = map[string]func(*handlers, context.Context, auth.User, string) (any, error){
+	"hero":         (*handlers).dashHero,
+	"logtime":      (*handlers).dashLogtime,
+	"projects":     (*handlers).dashProjects,
+	"skills":       (*handlers).dashSkills,
+	"coalition":    (*handlers).dashCoalition,
+	"evals":        (*handlers).dashEvals,
+	"points":       (*handlers).dashPoints,
+	"achievements": (*handlers).dashAchievements,
+	"events":       (*handlers).dashEvents,
+}
+
+// dashboardCard (GET /ui/dashboard/{card}) rend une carte du dashboard.
+// Les erreurs sortent en 200 avec un panneau « Réessayer » : htmx ne swappe
+// pas les réponses non-2xx, on garderait sinon un squelette éternel.
+func (h *handlers) dashboardCard(w http.ResponseWriter, r *http.Request) {
+	card := r.PathValue("card")
+	build, ok := dashCards[card]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	user, _ := userFromContext(r.Context())
+
+	tok, err := h.sessions.FreshToken(r, h.oauth)
+	var data any
+	if err == nil {
+		// Les requêtes 42 d'un utilisateur sont sérialisées à ~2 req/s : avec
+		// neuf cartes lancées en parallèle, les dernières patientent dans la
+		// file. Le timeout couvre la file plus un aller-retour lent, pas plus.
+		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		defer cancel()
+		data, err = build(h, ctx, user, tok.AccessToken)
+	}
+	if err != nil {
+		h.renderDashError(w, card, err)
+		return
+	}
+	if err := h.tmpl.ExecuteTemplate(w, "dash_"+card, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// renderDashError affiche l'état d'erreur d'une carte, avec un message
+// adapté à la cause (panne 42, scope insuffisant, session expirée).
+func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error) {
+	msg := "L'API 42 n'a pas répondu. Elle connaît régulièrement des pannes — réessaie dans un instant."
+	var apiErr *fortytwo.APIError
+	switch {
+	case errors.Is(err, fortytwo.ErrDown):
+		msg = "L'API 42 est en panne en ce moment. Réessaie dans une ou deux minutes."
+	case errors.As(err, &apiErr) && apiErr.Status == http.StatusForbidden:
+		msg = "42 refuse l'accès à cette donnée avec le scope actuel de l'application."
+	case errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized:
+		msg = "Ta session 42 n'est plus valide. Déconnecte-toi puis reconnecte-toi."
+	case strings.Contains(err.Error(), "session"), strings.Contains(err.Error(), "refresh"):
+		msg = "Ta session a expiré. Déconnecte-toi puis reconnecte-toi pour recharger cette carte."
+	}
+	log.Printf("[dashboard] carte %s : %v", card, err)
+	if terr := h.tmpl.ExecuteTemplate(w, "dash_error", map[string]any{
+		"Message": msg,
+		"Retry":   "/ui/dashboard/" + card,
+	}); terr != nil {
+		http.Error(w, terr.Error(), http.StatusInternalServerError)
+	}
+}
+
+// bestCursus choisit le cursus à mettre en avant : le plus récemment commencé
+// (pour un pisciner, sa piscine ; pour un étudiant, le cursus principal).
+func bestCursus(me *fortytwo.Me) *fortytwo.CursusUser {
+	var best *fortytwo.CursusUser
+	for i := range me.CursusUsers {
+		cu := &me.CursusUsers[i]
+		if best == nil || cu.BeginAt.After(best.BeginAt) {
+			best = cu
+		}
+	}
+	return best
+}
+
+// --- Carte héro (profil) ---
+
+type dashHeroView struct {
+	Login, Displayname, Avatar string
+	Title                      string // titre sélectionné sur l'intra, %login remplacé
+	CampusLine                 string // « Perpignan · France »
+	PoolBadge                  string // « Piscine juillet 2026 »
+	MemberSince                string
+	CursusName                 string
+	Grade                      string
+	Level                      string // « 8.42 »
+	LevelPct                   int    // décimales du niveau, en % vers le suivant
+	Wallet                     int
+	CorrectionPoint            int
+	Location                   string // host du poste si loggé en cluster
+}
+
+func (h *handlers) dashHero(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashHeroView{
+		Login:           me.Login,
+		Displayname:     me.Displayname,
+		Avatar:          me.Image.Link,
+		Wallet:          me.Wallet,
+		CorrectionPoint: me.CorrectionPoint,
+		Location:        me.Location,
+	}
+	if v.Displayname == "" {
+		v.Displayname = me.Login
+	}
+	if me.Image.Versions.Medium != "" {
+		v.Avatar = me.Image.Versions.Medium
+	}
+
+	for _, tu := range me.TitlesUsers {
+		if !tu.Selected {
+			continue
+		}
+		for _, t := range me.Titles {
+			if t.ID == tu.TitleID {
+				v.Title = strings.ReplaceAll(t.Name, "%login", me.Login)
+			}
+		}
+	}
+
+	primaryID := 0
+	for _, cu := range me.CampusUsers {
+		if cu.IsPrimary {
+			primaryID = cu.CampusID
+		}
+	}
+	for i, c := range me.Campus {
+		if i == 0 || c.ID == primaryID {
+			v.CampusLine = c.Name
+			if c.Country != "" {
+				v.CampusLine += " · " + c.Country
+			}
+			if c.ID == primaryID {
+				break
+			}
+		}
+	}
+
+	if me.PoolMonth != "" && me.PoolYear != "" {
+		v.PoolBadge = "Piscine " + frMonthName(me.PoolMonth) + " " + me.PoolYear
+	}
+	if !me.CreatedAt.IsZero() {
+		t := me.CreatedAt.Local()
+		v.MemberSince = fmt.Sprintf("Sur l'intra depuis %s %d", frMonthsFull[t.Month()-1], t.Year())
+	}
+
+	if cu := bestCursus(me); cu != nil {
+		v.CursusName = cu.Cursus.Name
+		v.Level = fmt.Sprintf("%.2f", cu.Level)
+		v.LevelPct = int((cu.Level - math.Floor(cu.Level)) * 100)
+		if cu.Grade != nil {
+			v.Grade = *cu.Grade
+		}
+	}
+	return v, nil
+}
+
+// --- Carte temps de présence (heatmap façon contribution graph) ---
+
+type hmCell struct {
+	Class string // l0..l4 selon les heures, lx = jour hors période
+	Title string
+}
+
+type dashLogtimeView struct {
+	Weeks      [][]hmCell // une colonne par semaine, 7 cases lun→dim
+	MonthRow   []string   // libellé de mois au-dessus de chaque colonne ("" = rien)
+	Last7      string
+	Last30     string
+	BestDay    string
+	ActiveDays int
+	Location   string
+}
+
+func (h *handlers) dashLogtime(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+
+	today := time.Now()
+	weekday := (int(today.Weekday()) + 6) % 7 // lundi = 0
+	monday := today.AddDate(0, 0, -weekday)
+	start := monday.AddDate(0, 0, -7*11) // 12 semaines pleines
+
+	stats, err := h.ft.LocationsStats(ctx, user.Login, tok, me.ID, start, today)
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashLogtimeView{Location: me.Location}
+	v.Weeks, v.MonthRow = buildHeatmap(stats, start, today)
+
+	var last7, last30, best float64
+	for k, raw := range stats {
+		d, err := time.ParseInLocation("2006-01-02", k, time.Local)
+		if err != nil {
+			continue
+		}
+		hrs := parseLogHours(raw)
+		if hrs <= 0 {
+			continue
+		}
+		v.ActiveDays++
+		if hrs > best {
+			best = hrs
+		}
+		age := today.Sub(d)
+		if age < 7*24*time.Hour {
+			last7 += hrs
+		}
+		if age < 30*24*time.Hour {
+			last30 += hrs
+		}
+	}
+	v.Last7 = fmtHours(last7)
+	v.Last30 = fmtHours(last30)
+	v.BestDay = fmtHours(best)
+	return v, nil
+}
+
+// buildHeatmap découpe la période en colonnes hebdomadaires, avec un libellé
+// de mois quand une colonne change de mois par rapport à la précédente.
+func buildHeatmap(stats map[string]string, start, today time.Time) ([][]hmCell, []string) {
+	var weeks [][]hmCell
+	var months []string
+	prevMonth := time.Month(0)
+	for w := 0; ; w++ {
+		monday := start.AddDate(0, 0, w*7)
+		if monday.After(today) {
+			break
+		}
+		label := ""
+		if monday.Month() != prevMonth {
+			label = frMonthsShort[monday.Month()-1]
+			prevMonth = monday.Month()
+		}
+		months = append(months, label)
+
+		col := make([]hmCell, 7)
+		for d := 0; d < 7; d++ {
+			date := monday.AddDate(0, 0, d)
+			if date.Format("2006-01-02") > today.Format("2006-01-02") {
+				col[d] = hmCell{Class: "lx"}
+				continue
+			}
+			hrs := parseLogHours(stats[date.Format("2006-01-02")])
+			col[d] = hmCell{
+				Class: hmClass(hrs),
+				Title: fmt.Sprintf("%s %d %s — %s", frDaysShort[date.Weekday()], date.Day(), frMonthsShort[date.Month()-1], fmtHours(hrs)),
+			}
+		}
+		weeks = append(weeks, col)
+	}
+	return weeks, months
+}
+
+func hmClass(hours float64) string {
+	switch {
+	case hours <= 0:
+		return "l0"
+	case hours < 2:
+		return "l1"
+	case hours < 4:
+		return "l2"
+	case hours < 7:
+		return "l3"
+	default:
+		return "l4"
+	}
+}
+
+// parseLogHours convertit une durée 42 « HH:MM:SS.micro » en heures.
+func parseLogHours(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	parts := strings.Split(s, ":")
+	if len(parts) != 3 {
+		return 0
+	}
+	hrs, _ := strconv.Atoi(parts[0])
+	mins, _ := strconv.Atoi(parts[1])
+	secs, _ := strconv.ParseFloat(parts[2], 64)
+	return float64(hrs) + float64(mins)/60 + secs/3600
+}
+
+// --- Carte projets ---
+
+type donutSeg struct {
+	Class  string
+	Dash   string
+	Offset string
+}
+
+type dashProjectRow struct {
+	Name   string
+	Mark   string
+	Status string // ok | ko | wip | wait
+	Date   string
+}
+
+type dashProjectsView struct {
+	CursusName string
+	Rows       []dashProjectRow
+	More       int
+	Validated  int
+	Failed     int
+	InProgress int
+	Total      int
+	Segments   []donutSeg
+}
+
+func (h *handlers) dashProjects(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashProjectsView{CursusName: "tous cursus"}
+	cursusID := 0
+	if cu := bestCursus(me); cu != nil {
+		cursusID = cu.Cursus.ID
+		v.CursusName = cu.Cursus.Name
+	}
+
+	var kept []fortytwo.ProjectUser
+	for _, pu := range me.ProjectsUsers {
+		if cursusID != 0 && !containsInt(pu.CursusIDs, cursusID) {
+			continue
+		}
+		kept = append(kept, pu)
+	}
+	// Données inattendues (aucun projet rattaché au cursus retenu) : tout montrer.
+	if len(kept) == 0 {
+		kept = me.ProjectsUsers
+		v.CursusName = "tous cursus"
+	}
+
+	sort.SliceStable(kept, func(i, j int) bool {
+		return projectDate(kept[i]).After(projectDate(kept[j]))
+	})
+
+	for _, pu := range kept {
+		status := projectStatus(pu)
+		switch status {
+		case "ok":
+			v.Validated++
+		case "ko":
+			v.Failed++
+		default:
+			v.InProgress++
+		}
+		row := dashProjectRow{Name: pu.Project.Name, Status: status, Mark: "—"}
+		if pu.FinalMark != nil {
+			row.Mark = strconv.Itoa(*pu.FinalMark)
+		}
+		if pu.MarkedAt != nil {
+			row.Date = frDateShort(*pu.MarkedAt)
+		}
+		v.Rows = append(v.Rows, row)
+	}
+	v.Total = len(v.Rows)
+	if len(v.Rows) > 18 {
+		v.More = len(v.Rows) - 18
+		v.Rows = v.Rows[:18]
+	}
+	v.Segments = donutSegments(
+		[]int{v.Validated, v.Failed, v.InProgress},
+		[]string{"ok", "ko", "wip"},
+	)
+	return v, nil
+}
+
+func projectDate(pu fortytwo.ProjectUser) time.Time {
+	if pu.MarkedAt != nil {
+		return *pu.MarkedAt
+	}
+	return pu.CreatedAt
+}
+
+func projectStatus(pu fortytwo.ProjectUser) string {
+	if pu.Validated != nil {
+		if *pu.Validated {
+			return "ok"
+		}
+		return "ko"
+	}
+	if pu.Status == "waiting_for_correction" {
+		return "wait"
+	}
+	return "wip"
+}
+
+// donutSegments transforme des effectifs en arcs SVG : le cercle de rayon
+// 15.9155 a une circonférence de 100, les dash-arrays parlent donc en %.
+func donutSegments(counts []int, classes []string) []donutSeg {
+	total := 0
+	for _, c := range counts {
+		total += c
+	}
+	if total == 0 {
+		return nil
+	}
+	var segs []donutSeg
+	start := 0.0
+	for i, cnt := range counts {
+		if cnt == 0 {
+			continue
+		}
+		frac := float64(cnt) / float64(total) * 100
+		segs = append(segs, donutSeg{
+			Class: classes[i],
+			Dash:  fmt.Sprintf("%.2f %.2f", frac, 100-frac),
+			// 0-start et non -start : nier 0.0 donne le zéro négatif IEEE,
+			// qui s'affiche « -0.00 ».
+			Offset: fmt.Sprintf("%.2f", 0-start),
+		})
+		start += frac
+	}
+	return segs
+}
+
+func containsInt(xs []int, x int) bool {
+	for _, v := range xs {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
+// --- Carte compétences ---
+
+type dashSkillRow struct {
+	Name  string
+	Level string
+	Pct   int
+}
+
+type dashSkillsView struct {
+	CursusName string
+	Skills     []dashSkillRow
+}
+
+func (h *handlers) dashSkills(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashSkillsView{}
+	cu := bestCursus(me)
+	if cu == nil {
+		return v, nil
+	}
+	v.CursusName = cu.Cursus.Name
+
+	maxLevel := 0.0
+	for _, s := range cu.Skills {
+		if s.Level > maxLevel {
+			maxLevel = s.Level
+		}
+	}
+	denom := math.Max(math.Ceil(maxLevel), 1)
+
+	skills := append([]fortytwo.Skill(nil), cu.Skills...)
+	sort.Slice(skills, func(i, j int) bool { return skills[i].Level > skills[j].Level })
+	for _, s := range skills {
+		v.Skills = append(v.Skills, dashSkillRow{
+			Name:  s.Name,
+			Level: fmt.Sprintf("%.2f", s.Level),
+			Pct:   int(s.Level / denom * 100),
+		})
+	}
+	return v, nil
+}
+
+// --- Carte coalition ---
+
+type dashCoalitionView struct {
+	Empty bool
+	Name  string
+	Color template.CSS // validée par regex avant d'être marquée sûre
+	Score string       // score personnel apporté à la coalition
+	Total string       // score global de la coalition
+	Rank  string       // « #3 » dans la coalition, si connu
+}
+
+var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{3,8}$`)
+
+func (h *handlers) dashCoalition(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+	cols, err := h.ft.Coalitions(ctx, user.Login, tok, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(cols) == 0 {
+		return dashCoalitionView{Empty: true}, nil
+	}
+
+	// L'adhésion la plus récente (id le plus haut) désigne la coalition
+	// active ; sans coalitions_users on retombe sur la première listée.
+	chosen := cols[0]
+	v := dashCoalitionView{}
+	if cus, err := h.ft.CoalitionUsers(ctx, user.Login, tok, me.ID); err == nil && len(cus) > 0 {
+		best := cus[0]
+		for _, cu := range cus[1:] {
+			if cu.ID > best.ID {
+				best = cu
+			}
+		}
+		for _, c := range cols {
+			if c.ID == best.CoalitionID {
+				chosen = c
+			}
+		}
+		v.Score = fmtInt(best.Score)
+		if best.Rank > 0 {
+			v.Rank = "#" + strconv.Itoa(best.Rank)
+		}
+	}
+
+	v.Name = chosen.Name
+	v.Total = fmtInt(chosen.Score)
+	v.Color = template.CSS("var(--accent)")
+	if hexColorRe.MatchString(chosen.Color) {
+		v.Color = template.CSS(chosen.Color)
+	}
+	return v, nil
+}
+
+// --- Carte évaluations ---
+
+type dashEvalRow struct {
+	Who      string
+	Mark     string
+	HasMark  bool
+	Pending  bool // défense planifiée, pas encore remplie
+	Flag     string
+	Positive bool
+	Date     string
+	Comment  string
+}
+
+type dashEvalsView struct {
+	Received []dashEvalRow // l'utilisateur a été corrigé
+	Given    []dashEvalRow // l'utilisateur a corrigé
+}
+
+func (h *handlers) dashEvals(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+	received, err := h.ft.ScaleTeams(ctx, user.Login, tok, me.ID, "as_corrected")
+	if err != nil {
+		return nil, err
+	}
+	given, err := h.ft.ScaleTeams(ctx, user.Login, tok, me.ID, "as_corrector")
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashEvalsView{}
+	for _, st := range received {
+		v.Received = append(v.Received, evalRow(st, true))
+	}
+	for _, st := range given {
+		v.Given = append(v.Given, evalRow(st, false))
+	}
+	return v, nil
+}
+
+func evalRow(st fortytwo.ScaleTeam, received bool) dashEvalRow {
+	row := dashEvalRow{
+		Date:     frDateShort(st.BeginAt),
+		Flag:     st.Flag.Name,
+		Positive: st.Flag.Positive,
+	}
+	if received {
+		row.Who = st.Corrector.Login
+	} else {
+		var names []string
+		for _, cu := range st.Correcteds {
+			if cu.Login != "" {
+				names = append(names, cu.Login)
+			}
+		}
+		row.Who = strings.Join(names, ", ")
+	}
+	if row.Who == "" {
+		row.Who = "anonyme"
+	}
+	if st.FinalMark != nil {
+		row.Mark = strconv.Itoa(*st.FinalMark)
+		row.HasMark = true
+	} else if st.FilledAt == nil {
+		row.Pending = true
+	}
+	if st.Comment != nil {
+		row.Comment = truncate(strings.TrimSpace(*st.Comment), 140)
+	}
+	return row
+}
+
+// --- Carte points de correction ---
+
+type dashPointMove struct {
+	Delta  string
+	Neg    bool
+	Reason string
+	Date   string
+}
+
+type dashPointsView struct {
+	Current  int
+	Spark    string // points de la polyline SVG (évolution chronologique)
+	HasSpark bool
+	Moves    []dashPointMove
+}
+
+func (h *handlers) dashPoints(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+	hist, err := h.ft.PointHistorics(ctx, user.Login, tok, me.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashPointsView{Current: me.CorrectionPoint}
+
+	// L'historique arrive du plus récent au plus ancien : on reconstruit le
+	// solde après chaque mouvement en remontant depuis le solde actuel.
+	totals := make([]int, len(hist))
+	running := me.CorrectionPoint
+	for i, mv := range hist {
+		totals[i] = running
+		running -= mv.Sum
+	}
+	// Remise en ordre chronologique pour la courbe, bornée aux 30 derniers.
+	for i, j := 0, len(totals)-1; i < j; i, j = i+1, j-1 {
+		totals[i], totals[j] = totals[j], totals[i]
+	}
+	if len(totals) > 30 {
+		totals = totals[len(totals)-30:]
+	}
+	v.Spark = sparkline(totals)
+	v.HasSpark = v.Spark != ""
+
+	for i, mv := range hist {
+		if i == 6 {
+			break
+		}
+		v.Moves = append(v.Moves, dashPointMove{
+			Delta:  fmt.Sprintf("%+d", mv.Sum),
+			Neg:    mv.Sum < 0,
+			Reason: frReason(mv.Reason),
+			Date:   frDateShort(mv.CreatedAt),
+		})
+	}
+	return v, nil
+}
+
+// sparkline projette une série sur une polyline dans un viewBox 120×32.
+func sparkline(vals []int) string {
+	if len(vals) < 2 {
+		return ""
+	}
+	lo, hi := vals[0], vals[0]
+	for _, v := range vals {
+		if v < lo {
+			lo = v
+		}
+		if v > hi {
+			hi = v
+		}
+	}
+	span := hi - lo
+	if span == 0 {
+		span = 1
+	}
+	var b strings.Builder
+	for i, v := range vals {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		x := 2 + float64(i)*116/float64(len(vals)-1)
+		y := 29 - float64(v-lo)/float64(span)*26
+		fmt.Fprintf(&b, "%.1f,%.1f", x, y)
+	}
+	return b.String()
+}
+
+// --- Carte succès ---
+
+type dashAchievement struct {
+	Name        string
+	Description string
+	Tier        string
+	TierClass   string
+}
+
+type dashAchievementsView struct {
+	Total int
+	Items []dashAchievement
+	More  int
+}
+
+var tierWeight = map[string]int{"challenge": 4, "hard": 3, "medium": 2, "easy": 1}
+var tierLabel = map[string]string{"challenge": "Challenge", "hard": "Difficile", "medium": "Moyen", "easy": "Facile"}
+
+func (h *handlers) dashAchievements(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+
+	items := append([]fortytwo.Achievement(nil), me.Achievements...)
+	sort.SliceStable(items, func(i, j int) bool {
+		wi, wj := tierWeight[items[i].Tier], tierWeight[items[j].Tier]
+		if wi != wj {
+			return wi > wj
+		}
+		return items[i].Name < items[j].Name
+	})
+
+	v := dashAchievementsView{Total: len(items)}
+	for i, a := range items {
+		if i == 12 {
+			v.More = len(items) - 12
+			break
+		}
+		item := dashAchievement{Name: a.Name, Description: a.Description, TierClass: "t" + strconv.Itoa(tierWeight[a.Tier])}
+		if lbl, ok := tierLabel[a.Tier]; ok {
+			item.Tier = lbl
+		}
+		v.Items = append(v.Items, item)
+	}
+	return v, nil
+}
+
+// --- Carte événements ---
+
+type dashEventRow struct {
+	Name     string
+	Kind     string
+	When     string
+	Location string
+}
+
+type dashEventsView struct {
+	Upcoming []dashEventRow
+	Total    int
+}
+
+var frEventKinds = map[string]string{
+	"exam": "Exam", "meet_up": "Meetup", "workshop": "Atelier",
+	"conference": "Conférence", "hackathon": "Hackathon", "association": "Asso",
+	"pedago": "Pédago", "rush": "Rush", "event": "Événement", "extern": "Externe",
+	"speed_working": "Speed working", "partnership": "Partenariat", "challenge": "Challenge",
+}
+
+func (h *handlers) dashEvents(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+	events, err := h.ft.Events(ctx, user.Login, tok, me.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	v := dashEventsView{Total: len(events)}
+	now := time.Now()
+	// L'API renvoie du plus récent au plus ancien : on collecte les futurs
+	// puis on inverse pour afficher le plus proche en premier.
+	var upcoming []fortytwo.Event
+	for _, ev := range events {
+		if ev.BeginAt.After(now) {
+			upcoming = append(upcoming, ev)
+		}
+	}
+	for i := len(upcoming) - 1; i >= 0 && len(v.Upcoming) < 4; i-- {
+		ev := upcoming[i]
+		kind := ev.Kind
+		if lbl, ok := frEventKinds[kind]; ok {
+			kind = lbl
+		}
+		t := ev.BeginAt.Local()
+		v.Upcoming = append(v.Upcoming, dashEventRow{
+			Name:     ev.Name,
+			Kind:     kind,
+			When:     fmt.Sprintf("%s · %dh%02d", frDateShort(ev.BeginAt), t.Hour(), t.Minute()),
+			Location: ev.Location,
+		})
+	}
+	return v, nil
+}
+
+// --- Helpers de formatage français ---
+
+var frDaysShort = [7]string{"dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."}
+var frMonthsShort = [12]string{"janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."}
+var frMonthsFull = [12]string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
+
+var frMonthNames = map[string]string{
+	"january": "janvier", "february": "février", "march": "mars", "april": "avril",
+	"may": "mai", "june": "juin", "july": "juillet", "august": "août",
+	"september": "septembre", "october": "octobre", "november": "novembre", "december": "décembre",
+}
+
+func frMonthName(en string) string {
+	if fr, ok := frMonthNames[strings.ToLower(en)]; ok {
+		return fr
+	}
+	return en
+}
+
+func frDateShort(t time.Time) string {
+	t = t.Local()
+	return fmt.Sprintf("%s %d %s", frDaysShort[t.Weekday()], t.Day(), frMonthsShort[t.Month()-1])
+}
+
+// frReason traduit les motifs de points de correction les plus courants.
+func frReason(reason string) string {
+	switch lower := strings.ToLower(reason); {
+	case strings.Contains(lower, "defense plannified"), strings.Contains(lower, "defense planified"):
+		return "Défense planifiée"
+	case strings.Contains(lower, "earning after defense"):
+		return "Gain après une défense"
+	case strings.Contains(lower, "defense cancel"):
+		return "Défense annulée"
+	case strings.Contains(lower, "adjustment"):
+		return "Ajustement par le staff"
+	case strings.Contains(lower, "pool"):
+		return "Échange avec la cagnotte"
+	default:
+		return reason
+	}
+}
+
+func fmtHours(h float64) string {
+	if h <= 0 {
+		return "0h"
+	}
+	total := int(h*60 + 0.5)
+	return fmt.Sprintf("%dh%02d", total/60, total%60)
+}
+
+// fmtInt insère une espace fine insécable tous les trois chiffres.
+func fmtInt(n int) string {
+	s := strconv.Itoa(n)
+	neg := false
+	if strings.HasPrefix(s, "-") {
+		neg, s = true, s[1:]
+	}
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteRune(' ')
+		}
+		b.WriteRune(r)
+	}
+	if neg {
+		return "-" + b.String()
+	}
+	return b.String()
+}
+
+func truncate(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return strings.TrimSpace(string(runes[:max])) + "…"
+}

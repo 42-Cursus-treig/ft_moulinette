@@ -1,0 +1,311 @@
+{{define "dashboard"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette — Dashboard</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem('ft-moulinette-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://cdn.intra.42.fr">
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body class="dash-body">
+  <header>
+    <h1>Dashboard</h1>
+    {{template "header_actions" .}}
+  </header>
+
+  <main class="dash-grid">
+    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/hero" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Profil"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/logtime" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Temps de présence"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/coalition" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Coalition"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/projects" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Projets"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/skills" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Compétences"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/evals" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Évaluations"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/points" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Points de correction"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/achievements" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Succès"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/events" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Événements"}}
+    </section>
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "dash_loading"}}
+<div class="dash-head"><h2 class="dash-title">{{.}}</h2></div>
+<div class="dash-skeleton" aria-hidden="true">
+  <div class="skel-line w60"></div>
+  <div class="skel-line w90"></div>
+  <div class="skel-line w75"></div>
+</div>
+{{end}}
+
+{{define "dash_error"}}
+<div class="dash-error">
+  <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+  </svg>
+  <p>{{.Message}}</p>
+  <button type="button" class="dash-retry" hx-get="{{.Retry}}" hx-target="closest section" hx-swap="innerHTML">Réessayer</button>
+</div>
+{{end}}
+
+{{define "dash_hero"}}
+<div class="hero-wrap">
+  {{if .Avatar}}<img class="hero-avatar" src="{{.Avatar}}" alt="" width="92" height="92" loading="lazy">{{end}}
+  <div class="hero-id">
+    <h2 class="hero-name">{{.Displayname}}</h2>
+    <p class="hero-login">{{.Login}}{{if .Title}} · <span class="hero-title">{{.Title}}</span>{{end}}</p>
+    <div class="hero-badges">
+      {{if .PoolBadge}}<span class="dash-badge accent">{{.PoolBadge}}</span>{{end}}
+      {{if .CampusLine}}<span class="dash-badge">{{.CampusLine}}</span>{{end}}
+      {{if .Grade}}<span class="dash-badge">{{.Grade}}</span>{{end}}
+      {{if .Location}}<span class="dash-badge online">En cluster · {{.Location}}</span>{{else}}<span class="dash-badge muted">Hors cluster</span>{{end}}
+    </div>
+    {{if .MemberSince}}<p class="hero-since">{{.MemberSince}}</p>{{end}}
+  </div>
+  <div class="hero-tiles">
+    <div class="dash-tile">
+      <span class="tile-label">Niveau{{if .CursusName}} — {{.CursusName}}{{end}}</span>
+      <span class="tile-value">{{.Level}}</span>
+      <div class="level-bar"><div class="level-fill" style="width: {{.LevelPct}}%"></div></div>
+    </div>
+    <div class="dash-tile">
+      <span class="tile-label">Wallet</span>
+      <span class="tile-value">{{.Wallet}} ₳</span>
+    </div>
+    <div class="dash-tile">
+      <span class="tile-label">Points de correction</span>
+      <span class="tile-value">{{.CorrectionPoint}}</span>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{define "dash_logtime"}}
+<div class="dash-head">
+  <h2 class="dash-title">Temps de présence</h2>
+  {{if .Location}}<span class="dash-badge online">{{.Location}}</span>{{end}}
+</div>
+<div class="lt-tiles">
+  <div class="dash-tile"><span class="tile-label">7 derniers jours</span><span class="tile-value">{{.Last7}}</span></div>
+  <div class="dash-tile"><span class="tile-label">30 derniers jours</span><span class="tile-value">{{.Last30}}</span></div>
+  <div class="dash-tile"><span class="tile-label">Record / jour</span><span class="tile-value">{{.BestDay}}</span></div>
+  <div class="dash-tile"><span class="tile-label">Jours actifs</span><span class="tile-value">{{.ActiveDays}}</span></div>
+</div>
+<div class="hm-scroll">
+  <div class="hm-months">{{range .MonthRow}}<span>{{.}}</span>{{end}}</div>
+  <div class="hm">
+    {{range .Weeks}}<div class="hm-col">{{range .}}<span class="hm-cell {{.Class}}"{{if .Title}} title="{{.Title}}"{{end}}></span>{{end}}</div>{{end}}
+  </div>
+</div>
+<div class="hm-legend">
+  <span>Moins</span>
+  <span class="hm-cell l0"></span><span class="hm-cell l1"></span><span class="hm-cell l2"></span><span class="hm-cell l3"></span><span class="hm-cell l4"></span>
+  <span>Plus</span>
+</div>
+{{end}}
+
+{{define "dash_coalition"}}
+<div class="dash-head"><h2 class="dash-title">Coalition</h2></div>
+{{if .Empty}}
+<p class="dash-empty">Pas encore de coalition — elle arrive en général quelques jours après le début de la piscine.</p>
+{{else}}
+<div class="coa-wrap">
+  <span class="coa-swatch" style="background: {{.Color}}"></span>
+  <span class="coa-name">{{.Name}}</span>
+</div>
+<div class="coa-tiles">
+  {{if .Score}}<div class="dash-tile"><span class="tile-label">Ton score</span><span class="tile-value">{{.Score}}</span></div>{{end}}
+  {{if .Rank}}<div class="dash-tile"><span class="tile-label">Ton rang</span><span class="tile-value">{{.Rank}}</span></div>{{end}}
+  <div class="dash-tile"><span class="tile-label">Score coalition</span><span class="tile-value">{{.Total}}</span></div>
+</div>
+{{end}}
+{{end}}
+
+{{define "dash_projects"}}
+<div class="dash-head"><h2 class="dash-title">Projets — {{.CursusName}}</h2></div>
+{{if .Rows}}
+<div class="proj-summary">
+  <svg class="donut" viewBox="0 0 36 36" role="img" aria-label="Répartition des projets">
+    <circle class="donut-ring" cx="18" cy="18" r="15.9155" fill="none" stroke-width="4.4"></circle>
+    {{range .Segments}}<circle class="donut-seg {{.Class}}" cx="18" cy="18" r="15.9155" fill="none" stroke-width="4.4" stroke-dasharray="{{.Dash}}" stroke-dashoffset="{{.Offset}}" transform="rotate(-90 18 18)"></circle>{{end}}
+    <text x="18" y="19.5" class="donut-text" text-anchor="middle">{{.Total}}</text>
+  </svg>
+  <div class="proj-counts">
+    <span class="proj-count ok">{{.Validated}} validé{{if gt .Validated 1}}s{{end}}</span>
+    <span class="proj-count ko">{{.Failed}} échoué{{if gt .Failed 1}}s{{end}}</span>
+    <span class="proj-count wip">{{.InProgress}} en cours</span>
+  </div>
+</div>
+<ul class="proj-list">
+  {{range .Rows}}
+  <li class="proj-row {{.Status}}">
+    <span class="proj-name">{{.Name}}</span>
+    <span class="proj-date">{{.Date}}</span>
+    <span class="proj-mark">{{.Mark}}</span>
+  </li>
+  {{end}}
+</ul>
+{{if .More}}<p class="dash-foot">+ {{.More}} autres projets</p>{{end}}
+{{else}}
+<p class="dash-empty">Aucun projet pour l'instant.</p>
+{{end}}
+{{end}}
+
+{{define "dash_skills"}}
+<div class="dash-head"><h2 class="dash-title">Compétences{{if .CursusName}} — {{.CursusName}}{{end}}</h2></div>
+{{if .Skills}}
+<ul class="skill-list">
+  {{range .Skills}}
+  <li class="skill-row">
+    <span class="skill-name">{{.Name}}</span>
+    <span class="skill-level">{{.Level}}</span>
+    <div class="skill-bar"><div class="skill-fill" style="width: {{.Pct}}%"></div></div>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="dash-empty">Pas encore de compétences mesurées — elles montent avec les projets validés.</p>
+{{end}}
+{{end}}
+
+{{define "dash_evals"}}
+<div class="dash-head"><h2 class="dash-title">Évaluations</h2></div>
+<div class="evals-cols">
+  <div class="evals-col">
+    <h3 class="evals-subtitle">Reçues</h3>
+    {{if .Received}}
+    <ul class="eval-list">
+      {{range .Received}}
+      <li class="eval-row">
+        <div class="eval-line">
+          <span class="eval-who">{{.Who}}</span>
+          {{if .HasMark}}<span class="eval-mark">{{.Mark}}</span>{{else if .Pending}}<span class="eval-pending">planifiée</span>{{end}}
+        </div>
+        <div class="eval-meta">
+          <span class="eval-date">{{.Date}}</span>
+          {{if .Flag}}<span class="eval-flag {{if .Positive}}pos{{else}}neg{{end}}">{{.Flag}}</span>{{end}}
+        </div>
+        {{if .Comment}}<p class="eval-comment">« {{.Comment}} »</p>{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="dash-empty">Aucune évaluation reçue.</p>{{end}}
+  </div>
+  <div class="evals-col">
+    <h3 class="evals-subtitle">Données</h3>
+    {{if .Given}}
+    <ul class="eval-list">
+      {{range .Given}}
+      <li class="eval-row">
+        <div class="eval-line">
+          <span class="eval-who">{{.Who}}</span>
+          {{if .HasMark}}<span class="eval-mark">{{.Mark}}</span>{{else if .Pending}}<span class="eval-pending">planifiée</span>{{end}}
+        </div>
+        <div class="eval-meta">
+          <span class="eval-date">{{.Date}}</span>
+          {{if .Flag}}<span class="eval-flag {{if .Positive}}pos{{else}}neg{{end}}">{{.Flag}}</span>{{end}}
+        </div>
+        {{if .Comment}}<p class="eval-comment">« {{.Comment}} »</p>{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="dash-empty">Aucune évaluation donnée.</p>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "dash_points"}}
+<div class="dash-head">
+  <h2 class="dash-title">Points de correction</h2>
+  <span class="points-current">{{.Current}} pts</span>
+</div>
+{{if .HasSpark}}
+<svg class="spark" viewBox="0 0 120 32" preserveAspectRatio="none" role="img" aria-label="Évolution des points de correction">
+  <polyline points="{{.Spark}}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
+</svg>
+{{end}}
+{{if .Moves}}
+<ul class="points-list">
+  {{range .Moves}}
+  <li class="points-row">
+    <span class="points-delta {{if .Neg}}neg{{else}}pos{{end}}">{{.Delta}}</span>
+    <span class="points-reason">{{.Reason}}</span>
+    <span class="points-date">{{.Date}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="dash-empty">Aucun mouvement de points pour l'instant — ils bougent à chaque évaluation.</p>
+{{end}}
+{{end}}
+
+{{define "dash_achievements"}}
+<div class="dash-head">
+  <h2 class="dash-title">Succès</h2>
+  <span class="dash-badge accent">{{.Total}} débloqué{{if gt .Total 1}}s{{end}}</span>
+</div>
+{{if .Items}}
+<div class="ach-grid">
+  {{range .Items}}
+  <div class="ach-chip {{.TierClass}}"{{if .Description}} title="{{.Description}}"{{end}}>
+    <span class="ach-name">{{.Name}}</span>
+    {{if .Tier}}<span class="ach-tier">{{.Tier}}</span>{{end}}
+  </div>
+  {{end}}
+</div>
+{{if .More}}<p class="dash-foot">+ {{.More}} autres succès</p>{{end}}
+{{else}}
+<p class="dash-empty">Aucun succès pour l'instant — le premier tombe vite.</p>
+{{end}}
+{{end}}
+
+{{define "dash_events"}}
+<div class="dash-head">
+  <h2 class="dash-title">Événements</h2>
+  {{if .Total}}<span class="dash-badge">{{.Total}} inscription{{if gt .Total 1}}s{{end}}</span>{{end}}
+</div>
+{{if .Upcoming}}
+<ul class="event-list">
+  {{range .Upcoming}}
+  <li class="event-row">
+    <span class="event-kind">{{.Kind}}</span>
+    <div class="event-body">
+      <span class="event-name">{{.Name}}</span>
+      <span class="event-meta">{{.When}}{{if .Location}} · {{.Location}}{{end}}</span>
+    </div>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="dash-empty">Aucun événement à venir dans tes inscriptions.</p>
+{{end}}
+{{end}}

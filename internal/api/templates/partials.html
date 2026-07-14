@@ -36,7 +36,11 @@
     </svg>
   </a>
   {{end}}
+  {{if ne .Page "dashboard"}}
+  <a href="/dashboard" class="user-badge" title="Mon dashboard" aria-label="Mon dashboard">{{.User.Login}}</a>
+  {{else}}
   <span class="user-badge">{{.User.Login}}</span>
+  {{end}}
   <form method="post" action="/auth/logout">
     <button type="submit" class="theme-toggle" title="Se déconnecter" aria-label="Se déconnecter">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

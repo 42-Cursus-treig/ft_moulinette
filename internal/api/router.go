@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
+	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
@@ -34,6 +35,7 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 		locks:        locksStore,
 		adminLogins:  adminLogins,
 		pool:         poolSvc,
+		ft:           fortytwo.New(oauth.APIBaseURL()),
 	}
 
 	// Connexion : jamais protégées, sinon impossible de se connecter.
@@ -41,6 +43,11 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.HandleFunc("GET /auth/login", h.authLogin)
 	mux.HandleFunc("GET /auth/callback", h.authCallback)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
+
+	// Dashboard : données personnelles du compte 42 connecté, ouvert à tous
+	// les membres (pas de gating par section). Les cartes se chargent en htmx.
+	mux.HandleFunc("GET /dashboard", h.requireAuth(h.dashboardPage))
+	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireAuthFragment(h.dashboardCard))
 
 	// Interface web (htmx). L'accès des membres non-admins à chaque section
 	// est bloqué et renvoie vers la page "disabled.html".

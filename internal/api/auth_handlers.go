@@ -64,17 +64,19 @@ func (h *handlers) authCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.oauth.FetchUser(token)
+	user, err := h.oauth.FetchUser(token.AccessToken)
 	if err != nil {
 		http.Error(w, "récupération du profil 42 échouée: "+err.Error(), http.StatusBadGateway)
 		return
 	}
 
-	if err := h.sessions.Create(w, *user); err != nil {
+	if err := h.sessions.Create(w, *user, *token); err != nil {
 		http.Error(w, "création de session échouée", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusFound)
+	// Le dashboard est la seule page ouverte à tous les membres quelles que
+	// soient les sections activées : c'est l'atterrissage naturel post-login.
+	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
 // authLogout (POST /auth/logout) flush l'historique en attente de
@@ -98,6 +100,22 @@ func (h *handlers) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		user, ok := h.sessions.FromRequest(r)
 		if !ok {
 			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))
+	}
+}
+
+// requireAuthFragment protège un fragment htmx : sans session valide on
+// demande à htmx une redirection plein écran (HX-Redirect) vers /login. Une
+// redirection 302 classique serait suivie silencieusement par htmx, qui
+// injecterait la page de connexion à l'intérieur de la carte.
+func (h *handlers) requireAuthFragment(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := h.sessions.FromRequest(r)
+		if !ok {
+			w.Header().Set("HX-Redirect", "/login")
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))

@@ -85,6 +85,9 @@ func main() {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
+		// Vide en temps normal (l'API 42 officielle). Permet de pointer vers
+		// un mock local pour développer/tester sans dépendre de l'intra.
+		BaseURL: os.Getenv("MOULINETTE_42_BASE_URL"),
 	}
 	sessions := auth.NewStore()
 
