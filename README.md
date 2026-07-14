@@ -20,7 +20,7 @@ cp .env.example .env
 
 Remplir le .env avec les valeurs de l'API 42
 
-```
+```bash
 MOULINETTE_42_CLIENT_ID=...
 MOULINETTE_42_CLIENT_SECRET=...
 ```
@@ -49,9 +49,9 @@ qui sont déjà complets).
 go run ./cmd/server
 ```
 
-```
+```bash
 ft_moulinette écoute sur :8080
 ```
 
-Rendez-vous sur **http://localhost:8080**, connectez-vous avec votre compte
+Rendez-vous sur [**http://localhost:8080**](http://localhost:8080), connectez-vous avec votre compte
 42, choisissez un sujet, déposez une archive.
