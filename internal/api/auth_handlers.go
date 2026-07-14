@@ -15,6 +15,18 @@ func userFromContext(ctx context.Context) (auth.User, bool) {
 	return u, ok
 }
 
+// loginPage (GET /login) affiche l'écran d'accueil public avec le bouton de
+// connexion 42. Un utilisateur déjà connecté est renvoyé directement au service.
+func (h *handlers) loginPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.sessions.FromRequest(r); ok {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	if err := h.tmpl.ExecuteTemplate(w, "login", nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // authLogin (GET /auth/login) démarre le flux OAuth en redirigeant vers 42.
 func (h *handlers) authLogin(w http.ResponseWriter, r *http.Request) {
 	state, err := auth.RandomToken()
@@ -79,12 +91,13 @@ func (h *handlers) authLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-// requireAuth protège les pages web : redirige vers /auth/login si non connecté.
+// requireAuth protège les pages web : redirige vers l'écran d'accueil /login
+// si non connecté, où l'utilisateur choisit lui-même de lancer le flux OAuth.
 func (h *handlers) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := h.sessions.FromRequest(r)
 		if !ok {
-			http.Redirect(w, r, "/auth/login", http.StatusFound)
+			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))

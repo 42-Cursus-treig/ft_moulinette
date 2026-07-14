@@ -37,6 +37,7 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	}
 
 	// Connexion : jamais protégées, sinon impossible de se connecter.
+	mux.HandleFunc("GET /login", h.loginPage)
 	mux.HandleFunc("GET /auth/login", h.authLogin)
 	mux.HandleFunc("GET /auth/callback", h.authCallback)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)

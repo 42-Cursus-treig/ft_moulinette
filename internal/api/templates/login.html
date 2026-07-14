@@ -1,0 +1,75 @@
+{{define "login"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette — Connexion</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem('ft-moulinette-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="preconnect" href="https://api.intra.42.fr">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+<script src="/static/particles.js" defer></script>
+</head>
+<body class="login-body">
+  <canvas id="particles-canvas" aria-hidden="true"></canvas>
+
+  <div class="login-theme-corner">
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
+      <img id="theme-icon" src="/static/moon.svg" alt="" width="20" height="20">
+    </button>
+  </div>
+
+  <main class="login-card brutal-card">
+    <span class="login-logo">42</span>
+    <h1 class="login-title">ft_moulinette</h1>
+    <p class="login-tagline">Corrige tes exercices de la piscine C comme la vraie moulinette&nbsp;: norminette, compilation et tests automatiques dans un bac à sable isolé.</p>
+
+    <a href="/auth/login" class="login-cta" id="login-cta">
+      <span id="login-cta-label">Se connecter avec 42</span>
+      <svg id="login-cta-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14"></path>
+        <path d="M13 6l6 6-6 6"></path>
+      </svg>
+      <span id="login-cta-spinner" class="spinner" hidden></span>
+    </a>
+
+    <p class="login-hint">Connexion via ton compte intra 42 (OAuth). Aucun mot de passe n'est stocké ici.</p>
+  </main>
+
+  <script>
+    // L'intra 42 peut mettre plusieurs secondes à répondre : sans retour
+    // visuel immédiat, le bouton semble mort. On bascule en "Connexion…"
+    // dès le clic, et on restaure si l'utilisateur revient en arrière
+    // (bfcache : la page réapparaît dans l'état où elle a été quittée).
+    (function () {
+      var cta = document.getElementById('login-cta');
+      var label = document.getElementById('login-cta-label');
+      var arrow = document.getElementById('login-cta-arrow');
+      var spinner = document.getElementById('login-cta-spinner');
+      var defaultLabel = label.textContent;
+
+      cta.addEventListener('click', function () {
+        cta.classList.add('loading');
+        label.textContent = 'Connexion à 42…';
+        arrow.setAttribute('hidden', '');
+        spinner.hidden = false;
+      });
+
+      window.addEventListener('pageshow', function () {
+        cta.classList.remove('loading');
+        label.textContent = defaultLabel;
+        arrow.removeAttribute('hidden');
+        spinner.hidden = true;
+      });
+    })();
+  </script>
+</body>
+</html>
+{{end}}
