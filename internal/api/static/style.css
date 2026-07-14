@@ -254,6 +254,19 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
   align-items: center;
 }
 .source-tab.active { background: var(--accent); color: var(--text); box-shadow: 3px 3px 0px var(--border); }
+.source-tab:disabled {
+  background: var(--surface);
+  color: var(--text-muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.source-tab:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .badge-soon {
   font-size: 0.65rem;
   background: var(--pending-bg);
