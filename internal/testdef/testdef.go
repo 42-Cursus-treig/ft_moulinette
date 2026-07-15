@@ -27,16 +27,19 @@ type ExerciseSpec struct {
 	Dir              string     `yaml:"dir"`
 	SourceFile       string     `yaml:"source_file"`
 	ExtraSources     []string   `yaml:"extra_sources"`
-	Harness          string     `yaml:"harness"`
+	Harness          string     `yaml:"harness"`          // un seul .c de test (main)
+	HarnessFiles     []string   `yaml:"harness_files"`    // fichiers auxiliaires serveur : headers fournis, impl. de référence
+	NormExtraRules   []string   `yaml:"norm_extra_rules"` // règles -R propres à l'exercice ; si présent, remplace celles du projet
 	AllowedFunctions []string   `yaml:"allowed_functions"`
 	CheckLeaks       bool       `yaml:"check_leaks"`
+	CompileOnly      bool       `yaml:"compile_only"` // exercice header-only : compilation en .o (-c), pas de link ni d'exécution
 	Tests            []TestCase `yaml:"tests"`
 }
 
 type ProjectDef struct {
 	Project        string         `yaml:"project"`
 	DisplayName    string         `yaml:"display_name"`
-	NormExtraRules []string       `yaml:"norm_extra_rules"` // règles -R additionnelles pour norminette
+	NormExtraRules []string       `yaml:"norm_extra_rules"` // règles -R additionnelles pour norminette (défaut projet)
 	Points         []int          `yaml:"points"`           // Points[k-1] = score si les k premiers exercices passent d'affilée
 	Exercises      []ExerciseSpec `yaml:"exercises"`
 }

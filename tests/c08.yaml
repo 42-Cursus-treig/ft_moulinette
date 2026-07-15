@@ -1,0 +1,181 @@
+project: c08
+display_name: C08
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 1
+- 10
+- 20
+- 40
+- 70
+- 100
+exercises:
+# ex00 : ft.h — header de prototypes uniquement. Aucune implémentation à
+# linker : compile_only compile le harness en .o (-c) pour vérifier que tous
+# les prototypes existent avec la bonne signature.
+- name: ex00
+  dir: ex00
+  source_file: ft.h
+  harness: harness/c08/ex00.c
+  compile_only: true
+  allowed_functions: []
+
+# ex01 : ft_boolean.h — le main du sujet doit compiler ET s'exécuter
+# correctement. norminette avec CheckDefine (propre à l'exercice).
+- name: ex01
+  dir: ex01
+  source_file: ft_boolean.h
+  harness: harness/c08/ex01.c
+  norm_extra_rules:
+  - CheckDefine
+  allowed_functions:
+  - write
+  tests:
+  - name: Zero argument (pair)
+    args: []
+    stdin: ''
+    expected_stdout: |
+      I have an even number of arguments.
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Un argument (impair)
+    args:
+    - x
+    stdin: ''
+    expected_stdout: |
+      I have an odd number of arguments.
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Deux arguments (pair)
+    args:
+    - x
+    - 'y'
+    stdin: ''
+    expected_stdout: |
+      I have an even number of arguments.
+    expected_exit_code: 0
+    timeout_sec: 5
+
+# ex02 : ft_abs.h — macro ABS. norminette avec CheckDefine.
+- name: ex02
+  dir: ex02
+  source_file: ft_abs.h
+  harness: harness/c08/ex02.c
+  norm_extra_rules:
+  - CheckDefine
+  allowed_functions: []
+  tests:
+  - name: Valeur absolue
+    args: []
+    stdin: ''
+    expected_stdout: |
+      42
+      42
+      0
+    expected_exit_code: 0
+    timeout_sec: 5
+
+# ex03 : ft_point.h — définition de type. Compilation seule du main du sujet.
+- name: ex03
+  dir: ex03
+  source_file: ft_point.h
+  harness: harness/c08/ex03.c
+  compile_only: true
+  allowed_functions: []
+
+# ex04 : ft_strs_to_tab.c — testé avec le ft_show_tab de RÉFÉRENCE.
+# ft_stock_str.h et ref_show_tab.c sont fournis par le serveur.
+- name: ex04
+  dir: ex04
+  source_file: ft_strs_to_tab.c
+  harness: harness/c08/ex04.c
+  harness_files:
+  - harness/c08/ft_stock_str.h
+  - harness/c08/ref_show_tab.c
+  allowed_functions:
+  - malloc
+  - free
+  tests:
+  - name: Plusieurs chaines
+    args:
+    - bonjour
+    - le
+    - monde
+    - '42'
+    stdin: ''
+    expected_stdout: |
+      bonjour
+      7
+      bonjour
+      le
+      2
+      le
+      monde
+      5
+      monde
+      42
+      2
+      42
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Une seule chaine
+    args:
+    - hello
+    stdin: ''
+    expected_stdout: |
+      hello
+      5
+      hello
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Aucune chaine
+    args: []
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+# ex05 : ft_show_tab.c — testé avec le ft_strs_to_tab de RÉFÉRENCE.
+# ft_stock_str.h et ref_strs_to_tab.c sont fournis par le serveur.
+- name: ex05
+  dir: ex05
+  source_file: ft_show_tab.c
+  harness: harness/c08/ex05.c
+  harness_files:
+  - harness/c08/ft_stock_str.h
+  - harness/c08/ref_strs_to_tab.c
+  allowed_functions:
+  - write
+  tests:
+  - name: Plusieurs chaines
+    args:
+    - bonjour
+    - le
+    - monde
+    - '42'
+    stdin: ''
+    expected_stdout: |
+      bonjour
+      7
+      bonjour
+      le
+      2
+      le
+      monde
+      5
+      monde
+      42
+      2
+      42
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Une seule chaine
+    args:
+    - hello
+    stdin: ''
+    expected_stdout: |
+      hello
+      5
+      hello
+    expected_exit_code: 0
+    timeout_sec: 5
