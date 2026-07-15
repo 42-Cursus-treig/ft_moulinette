@@ -18,6 +18,19 @@ type Config struct {
 	ClientSecret string
 	RedirectURL  string
 	BaseURL      string
+	// Scope demandé au flux OAuth (liste séparée par des espaces). Le jeton ne
+	// portera QUE ces droits : « public » suffit pour le profil et le
+	// classement, mais gérer les créneaux de correction (/v2/slots) exige aussi
+	// « projects ». Le scope demandé doit être coché sur l'app côté intra,
+	// sinon 42 refuse l'autorisation.
+	Scope string
+}
+
+func (c Config) scope() string {
+	if c.Scope != "" {
+		return c.Scope
+	}
+	return "public"
 }
 
 func (c Config) baseURL() string {
@@ -40,7 +53,7 @@ func (c Config) AuthorizeURL(state string) string {
 	v.Set("client_id", c.ClientID)
 	v.Set("redirect_uri", c.RedirectURL)
 	v.Set("response_type", "code")
-	v.Set("scope", "public")
+	v.Set("scope", c.scope())
 	v.Set("state", state)
 	return c.baseURL() + "/oauth/authorize?" + v.Encode()
 }

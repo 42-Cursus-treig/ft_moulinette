@@ -81,10 +81,20 @@ func main() {
 		log.Fatal("MOULINETTE_42_CLIENT_ID et MOULINETTE_42_CLIENT_SECRET sont requis " +
 			"(créez une application sur https://profile.intra.42.fr/oauth/applications/new)")
 	}
+	// Scope OAuth demandé à 42. Défaut « public » (profil + classement) ;
+	// mettre « public projects » pour débloquer l'agenda des créneaux de
+	// correction — à condition d'avoir aussi coché « projects » sur l'app côté
+	// intra. Changer ce scope oblige les utilisateurs à se reconnecter (le
+	// nouveau droit n'est porté que par un jeton fraîchement émis).
+	oauthScope := os.Getenv("MOULINETTE_42_SCOPE")
+	if oauthScope == "" {
+		oauthScope = "public"
+	}
 	oauthConfig := auth.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
+		Scope:        oauthScope,
 		// Vide en temps normal (l'API 42 officielle). Permet de pointer vers
 		// un mock local pour développer/tester sans dépendre de l'intra.
 		BaseURL: os.Getenv("MOULINETTE_42_BASE_URL"),

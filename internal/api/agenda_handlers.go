@@ -276,7 +276,7 @@ func (h *handlers) renderAgenda(w http.ResponseWriter, r *http.Request, week tim
 	slots, err := h.ft.Slots(ctx, user.Login, tok.AccessToken, week, week.AddDate(0, 0, 7))
 	if err != nil {
 		if scopeForbidden(err) {
-			h.renderAgendaError(w, week, "L'application 42 n'a pas le droit de lire les slots avec le scope « public ». L'agenda restera vide tant que ce scope n'est pas accordé à l'app sur l'intra.")
+			h.renderAgendaError(w, week, "Ton jeton 42 n'a pas le scope « projects », nécessaire aux créneaux. Pour l'activer : coche « projects » sur l'application (profile.intra.42.fr/oauth/applications), lance le serveur avec MOULINETTE_42_SCOPE=\"public projects\", puis déconnecte-toi et reconnecte-toi.")
 			return
 		}
 		h.renderAgendaError(w, week, "L'API 42 n'a pas répondu. Réessaie dans un instant.")

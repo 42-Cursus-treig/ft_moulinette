@@ -105,7 +105,7 @@ func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error
 		msg = "L'API 42 est en panne en ce moment. Réessaie dans une ou deux minutes."
 	case errors.As(err, &apiErr) && apiErr.Status == http.StatusForbidden:
 		kind = "scope"
-		msg = "L'application 42 n'a pas le droit de lire cette donnée (scope « public »). Rien à réessayer — c'est une limite posée côté intra."
+		msg = "Cette donnée demande le scope « projects », que ton jeton n'a pas. Coche « projects » sur l'app 42, lance le serveur avec MOULINETTE_42_SCOPE=\"public projects\", puis reconnecte-toi."
 	case errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized:
 		kind = "auth"
 		msg = "Ta session 42 n'est plus valide."
