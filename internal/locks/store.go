@@ -10,7 +10,7 @@
 // Pour ne pas casser les sujets déjà en place au moment de ce changement,
 // une migration automatique et unique déverrouille, la toute première fois
 // que le nouveau format est utilisé, tous les sujets qui ont déjà un
-// fichier YAML à cet instant précis — voir SeedExisting.
+// fichier YAML à cet instant précis - voir SeedExisting.
 package locks
 
 import (
@@ -23,7 +23,7 @@ import (
 const currentSchema = 2
 
 // entry est l'état connu d'un sujet. LockDecided distingue "jamais touché"
-// (retombe sur le défaut verrouillé) de "explicitement décidé" — sans ce
+// (retombe sur le défaut verrouillé) de "explicitement décidé" - sans ce
 // distinguo, on ne pourrait pas donner un Order à un sujet sans, du même
 // coup, le faire sortir du comportement par défaut.
 type entry struct {
@@ -46,7 +46,7 @@ type Store struct {
 	entries map[string]entry
 
 	// freshlyMigrated est vrai si ce Store vient de migrer depuis l'ancien
-	// format (ou de démarrer sans aucun fichier existant) — signal pour
+	// format (ou de démarrer sans aucun fichier existant) - signal pour
 	// l'appelant (main.go) qu'il doit lancer SeedExisting une fois.
 	freshlyMigrated bool
 }
@@ -95,7 +95,7 @@ func New(path string) (*Store, error) {
 
 // NeedsSeeding indique si ce Store vient de migrer (ou de démarrer sans
 // fichier) et n'a donc encore reçu aucun déverrouillage explicite pour les
-// sujets déjà en place — voir SeedExisting.
+// sujets déjà en place - voir SeedExisting.
 func (s *Store) NeedsSeeding() bool {
 	return s.freshlyMigrated
 }
@@ -103,7 +103,7 @@ func (s *Store) NeedsSeeding() bool {
 // SeedExisting déverrouille explicitement chaque ID de la liste s'il n'a
 // pas déjà de décision explicite prise pour lui. À appeler une seule fois
 // au démarrage, uniquement si NeedsSeeding() est vrai, avec la liste des
-// projets qui ont déjà un fichier YAML à cet instant — pour que les sujets
+// projets qui ont déjà un fichier YAML à cet instant - pour que les sujets
 // déjà en place ne se retrouvent pas verrouillés du jour au lendemain par
 // le nouveau comportement par défaut.
 func (s *Store) SeedExisting(ids []string) error {
@@ -153,7 +153,7 @@ func (s *Store) Lock(id, label string) error {
 	return s.save()
 }
 
-// Unlock déverrouille explicitement un sujet — décision persistée, ne
+// Unlock déverrouille explicitement un sujet - décision persistée, ne
 // revient jamais au comportement par défaut. Préserve l'Order existant.
 func (s *Store) Unlock(id string) error {
 	s.mu.Lock()
@@ -180,10 +180,10 @@ func (s *Store) Delete(id string) error {
 }
 
 // SetOrder fixe l'ordre d'affichage explicite de chaque ID de la liste,
-// dans l'ordre où ils apparaissent (le premier reçoit Order=1, etc. — 0
+// dans l'ordre où ils apparaissent (le premier reçoit Order=1, etc. - 0
 // reste réservé à "jamais réordonné manuellement"). Un ID qui n'avait
 // encore aucune décision de verrouillage explicite en reçoit une neutre
-// (verrouillé par défaut) simplement pour pouvoir porter son Order — ça ne
+// (verrouillé par défaut) simplement pour pouvoir porter son Order - ça ne
 // change pas son état de verrouillage apparent.
 func (s *Store) SetOrder(ids []string) error {
 	s.mu.Lock()
@@ -200,7 +200,7 @@ func (s *Store) SetOrder(ids []string) error {
 }
 
 // OrderOf renvoie l'ordre explicite d'un sujet (0 si jamais réordonné
-// manuellement — à trier après tout sujet ayant un ordre explicite).
+// manuellement - à trier après tout sujet ayant un ordre explicite).
 func (s *Store) OrderOf(id string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -208,7 +208,7 @@ func (s *Store) OrderOf(id string) int {
 }
 
 // All renvoie, pour chaque sujet verrouillé sans correspondance YAML, son
-// libellé — utilisé pour afficher les sujets verrouillés qui n'ont pas
+// libellé - utilisé pour afficher les sujets verrouillés qui n'ont pas
 // encore de fichier YAML (voir exerciseTiles côté api). Les sujets
 // déverrouillés n'ont pas besoin d'un libellé de secours : ils ont
 // forcément un vrai fichier YAML, sinon rien n'existerait à déverrouiller.
@@ -229,7 +229,7 @@ func (s *Store) All() map[string]string {
 }
 
 // Decisions renvoie l'état verrouillé/déverrouillé de chaque sujet ayant
-// une décision explicite — utilisé par la page admin pour afficher aussi
+// une décision explicite - utilisé par la page admin pour afficher aussi
 // les sujets déjà déverrouillés (pas seulement les verrouillés).
 func (s *Store) Decisions() map[string]bool {
 	s.mu.RLock()

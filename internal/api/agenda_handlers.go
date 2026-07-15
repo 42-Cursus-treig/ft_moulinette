@@ -165,9 +165,9 @@ type agDay struct {
 	Label  string // « lun. 13 »
 	Date   string // 2026-07-13
 	Today  bool
-	Past   bool   // jour entièrement passé : rien de posable
-	PastPx int    // hauteur grisée depuis le haut de la colonne (heures révolues)
-	MinMin int    // première minute encore posable (borne le glisser-déposer)
+	Past   bool // jour entièrement passé : rien de posable
+	PastPx int  // hauteur grisée depuis le haut de la colonne (heures révolues)
+	MinMin int  // première minute encore posable (borne le glisser-déposer)
 	Blocks []agBlock
 }
 
@@ -209,7 +209,7 @@ func (h *handlers) slotsCreate(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := h.sessions.FreshToken(r, h.oauth)
 	if err != nil {
-		h.renderAgenda(w, r, week, "Ta session a expiré — reconnecte-toi.")
+		h.renderAgenda(w, r, week, "Ta session a expiré - reconnecte-toi.")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
@@ -240,7 +240,7 @@ func (h *handlers) slotsDelete(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := h.sessions.FreshToken(r, h.oauth)
 	if err != nil {
-		h.renderAgenda(w, r, week, "Ta session a expiré — reconnecte-toi.")
+		h.renderAgenda(w, r, week, "Ta session a expiré - reconnecte-toi.")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
@@ -263,7 +263,7 @@ func agendaErrMsg(action string, err error) string {
 	if errors.As(err, &apiErr) && apiErr.Status < 500 {
 		return "42 a refusé de " + action + " (" + strconv.Itoa(apiErr.Status) + ")."
 	}
-	return "L'API 42 n'a pas répondu — impossible de " + action + " pour l'instant."
+	return "L'API 42 n'a pas répondu - impossible de " + action + " pour l'instant."
 }
 
 func (h *handlers) renderAgenda(w http.ResponseWriter, r *http.Request, week time.Time, errMsg string) {
@@ -388,7 +388,7 @@ type slotRun struct {
 }
 
 // groupSlots fusionne les granules de 15 min contigus de même nature en un
-// seul bloc affichable (l'intra les montre un par un — un bloc unique avec un
+// seul bloc affichable (l'intra les montre un par un - un bloc unique avec un
 // seul ✕ est plus lisible).
 func groupSlots(slots []fortytwo.Slot) []agBlock {
 	sort.Slice(slots, func(i, j int) bool { return slots[i].BeginAt.Before(slots[j].BeginAt) })
@@ -458,7 +458,7 @@ func blockFrom(a slotRun) (agBlock, bool) {
 
 // daysApart compte les jours calendaires entre a et b (dates locales) : on
 // compare les midis des deux jours et on arrondit, ce qui absorbe l'heure
-// d'été (±1 h) dans les deux sens — une troncature ferait dérailler les
+// d'été (±1 h) dans les deux sens - une troncature ferait dérailler les
 // écarts négatifs.
 func daysApart(a, b time.Time) int {
 	a = time.Date(a.Year(), a.Month(), a.Day(), 12, 0, 0, 0, time.Local)

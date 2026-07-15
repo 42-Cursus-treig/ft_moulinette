@@ -200,7 +200,7 @@ func (b *SlotBooking) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// Me récupère le profil du token — la source de la moitié des cartes du
+// Me récupère le profil du token - la source de la moitié des cartes du
 // dashboard (héro, projets, skills, succès), d'où son cache partagé.
 func (c *Client) Me(ctx context.Context, login, tok string) (*Me, error) {
 	var me Me
@@ -274,7 +274,7 @@ func (c *Client) MeScaleTeams(ctx context.Context, login, tok string) ([]ScaleTe
 }
 
 // Slots renvoie les créneaux de l'utilisateur dont le début tombe dans
-// [from, to] — TTL court, l'agenda doit reflèter vite les réservations.
+// [from, to] - TTL court, l'agenda doit reflèter vite les réservations.
 func (c *Client) Slots(ctx context.Context, login, tok string, from, to time.Time) ([]Slot, error) {
 	params := url.Values{}
 	params.Set("range[begin_at]", from.UTC().Format(time.RFC3339)+","+to.UTC().Format(time.RFC3339))
@@ -302,7 +302,7 @@ func (c *Client) DeleteSlot(ctx context.Context, login, tok string, slotID int) 
 	return err
 }
 
-// Project renvoie le nom d'un projet — pour libeller les défenses à venir.
+// Project renvoie le nom d'un projet - pour libeller les défenses à venir.
 // Peu de projets distincts pendant une piscine : cache long.
 func (c *Client) Project(ctx context.Context, login, tok string, id int) (string, error) {
 	var out struct {

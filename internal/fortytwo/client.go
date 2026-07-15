@@ -6,7 +6,7 @@
 // Le client encaisse les caprices de l'API 42 : requêtes sérialisées par
 // utilisateur pour respecter la limite de 2 req/s par token, cache TTL des
 // réponses, retry unique sur 429/5xx, et disjoncteur qui répond « en panne »
-// immédiatement pendant un moment quand 42 est réellement tombée — plutôt
+// immédiatement pendant un moment quand 42 est réellement tombée - plutôt
 // que de faire patienter chaque carte du dashboard 20 secondes chacune.
 package fortytwo
 
@@ -55,7 +55,7 @@ type cacheEntry struct {
 }
 
 // userState sérialise les requêtes d'un même utilisateur : son mutex sert à
-// la fois de limiteur de débit et de « singleflight » — quand deux cartes
+// la fois de limiteur de débit et de « singleflight » - quand deux cartes
 // veulent /v2/me en même temps, la première remplit le cache, la seconde le
 // lit au lieu de refaire l'appel.
 type userState struct {
@@ -105,7 +105,7 @@ func (c *Client) user(login string) *userState {
 // get exécute un GET authentifié et garde la réponse brute en cache pendant
 // ttl. Les échecs sont aussi mis en cache : brièvement pour une panne (elle
 // peut se résorber), pour tout le ttl quand la réponse est stable (403 de
-// scope, 404) — inutile de redemander à chaque visite.
+// scope, 404) - inutile de redemander à chaque visite.
 func (c *Client) get(ctx context.Context, login, accessToken, pathname string, params url.Values, ttl time.Duration, out any) error {
 	key := pathname
 	if len(params) > 0 {

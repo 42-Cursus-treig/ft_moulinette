@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ft_moulinette — Dashboard</title>
+<title>ft_moulinette - Dashboard</title>
 <script>
   (function () {
     var stored = localStorage.getItem('ft-moulinette-theme');
@@ -137,7 +137,7 @@
   </div>
   <div class="hero-tiles">
     <div class="dash-tile">
-      <span class="tile-label">Niveau{{if .CursusName}} — {{.CursusName}}{{end}}</span>
+      <span class="tile-label">Niveau{{if .CursusName}} - {{.CursusName}}{{end}}</span>
       <span class="tile-value">{{.Level}}</span>
       <div class="level-bar"><div class="level-fill" style="width: {{.LevelPct}}%"></div></div>
     </div>
@@ -182,7 +182,7 @@
 {{define "dash_coalition"}}
 <div class="dash-head"><h2 class="dash-title">Coalition</h2></div>
 {{if .Empty}}
-<p class="dash-empty">Pas encore de coalition — elle arrive en général quelques jours après le début de la piscine.</p>
+<p class="dash-empty">Pas encore de coalition - elle arrive en général quelques jours après le début de la piscine.</p>
 {{else}}
 <div class="coa-wrap">
   <span class="coa-swatch" style="background: {{.Color}}"></span>
@@ -197,7 +197,7 @@
 {{end}}
 
 {{define "dash_projects"}}
-<div class="dash-head"><h2 class="dash-title">Projets — {{.CursusName}}</h2></div>
+<div class="dash-head"><h2 class="dash-title">Projets - {{.CursusName}}</h2></div>
 {{if .Rows}}
 <div class="proj-summary">
   <svg class="donut" viewBox="0 0 36 36" role="img" aria-label="Répartition des projets">
@@ -227,7 +227,7 @@
 {{end}}
 
 {{define "dash_skills"}}
-<div class="dash-head"><h2 class="dash-title">Compétences{{if .CursusName}} — {{.CursusName}}{{end}}</h2></div>
+<div class="dash-head"><h2 class="dash-title">Compétences{{if .CursusName}} - {{.CursusName}}{{end}}</h2></div>
 {{if .Skills}}
 <ul class="skill-list">
   {{range .Skills}}
@@ -239,7 +239,7 @@
   {{end}}
 </ul>
 {{else}}
-<p class="dash-empty">Pas encore de compétences mesurées — elles montent avec les projets validés.</p>
+<p class="dash-empty">Pas encore de compétences mesurées - elles montent avec les projets validés.</p>
 {{end}}
 {{end}}
 
@@ -313,7 +313,7 @@
 {{else if .Note}}
 <p class="dash-empty">{{.Note}}</p>
 {{else}}
-<p class="dash-empty">Aucun mouvement de points pour l'instant — ils bougent à chaque évaluation.</p>
+<p class="dash-empty">Aucun mouvement de points pour l'instant - ils bougent à chaque évaluation.</p>
 {{end}}
 {{end}}
 
@@ -387,7 +387,7 @@
 </div>
 {{if .More}}<p class="dash-foot">+ {{.More}} autres succès</p>{{end}}
 {{else}}
-<p class="dash-empty">Aucun succès pour l'instant — le premier tombe vite.</p>
+<p class="dash-empty">Aucun succès pour l'instant - le premier tombe vite.</p>
 {{end}}
 {{end}}
 

@@ -82,7 +82,7 @@ func Run(job models.Job, report func(done, total int)) (*models.Result, error) {
 }
 
 // passed décide du verdict global. Si le projet fixe RequiredExercises, il faut
-// que ce nombre d'exercices (les premiers, consécutivement) soient OK — un
+// que ce nombre d'exercices (les premiers, consécutivement) soient OK - un
 // barème de points élevé ne suffit pas. Sinon, on retombe sur le seuil
 // historique score >= 50.
 func passed(results []models.ExerciseResult, def *testdef.ProjectDef) bool {
@@ -225,7 +225,7 @@ func computeScore(results []models.ExerciseResult, points []int) int {
 // respecte pas la Norme") : fichier présent -> norme -> compilation ->
 // fonctions autorisées -> tests fonctionnels. Une erreur à une étape
 // n'affecte que CET exercice, les autres du même projet continuent.
-// runExercise — VERSION C08 (remplace la fonction existante dans runner.go).
+// runExercise - VERSION C08 (remplace la fonction existante dans runner.go).
 //
 // Ordre : fichier présent -> norme -> compilation -> fonctions autorisées ->
 // tests fonctionnels. Nouveautés C08 :

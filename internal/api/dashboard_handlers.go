@@ -21,7 +21,7 @@ import (
 
 // dashboardPage (GET /dashboard) rend la coquille de la page : chaque carte
 // se charge ensuite en htmx (hx-trigger="load"), pour que les latences et
-// pannes de l'API 42 ne bloquent jamais la page — une carte en échec propose
+// pannes de l'API 42 ne bloquent jamais la page - une carte en échec propose
 // « Réessayer », les autres vivent leur vie.
 func (h *handlers) dashboardPage(w http.ResponseWriter, r *http.Request) {
 	user, _ := userFromContext(r.Context())
@@ -94,11 +94,11 @@ func (h *handlers) dashboardCard(w http.ResponseWriter, r *http.Request) {
 
 // renderDashError affiche l'état d'erreur d'une carte, adapté à la cause :
 // une panne se retente (bouton Réessayer), un refus de scope est permanent
-// (aucun bouton — réessayer ne changera jamais rien), une session morte
+// (aucun bouton - réessayer ne changera jamais rien), une session morte
 // propose de se reconnecter.
 func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error) {
 	kind := "warn"
-	msg := "L'API 42 n'a pas répondu. Elle connaît régulièrement des pannes — réessaie dans un instant."
+	msg := "L'API 42 n'a pas répondu. Elle connaît régulièrement des pannes - réessaie dans un instant."
 	var apiErr *fortytwo.APIError
 	switch {
 	case errors.Is(err, fortytwo.ErrDown):
@@ -124,7 +124,7 @@ func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error
 }
 
 // scopeForbidden dit si err est un refus définitif de l'API 42 (403 : le
-// scope de l'app ne couvre pas l'endpoint) — utile aux cartes qui préfèrent
+// scope de l'app ne couvre pas l'endpoint) - utile aux cartes qui préfèrent
 // dégrader leur contenu plutôt que d'afficher un panneau d'erreur entier.
 func scopeForbidden(err error) bool {
 	var apiErr *fortytwo.APIError
@@ -348,7 +348,7 @@ func buildHeatmap(stats map[string]string, start, today time.Time) ([][]hmCell, 
 			hrs := parseLogHours(stats[date.Format("2006-01-02")])
 			col[d] = hmCell{
 				Class: hmClass(hrs),
-				Title: fmt.Sprintf("%s %d %s — %s", frDaysShort[date.Weekday()], date.Day(), frMonthsShort[date.Month()-1], fmtHours(hrs)),
+				Title: fmt.Sprintf("%s %d %s - %s", frDaysShort[date.Weekday()], date.Day(), frMonthsShort[date.Month()-1], fmtHours(hrs)),
 			}
 		}
 		weeks = append(weeks, col)
@@ -452,7 +452,7 @@ func (h *handlers) dashProjects(ctx context.Context, user auth.User, tok string)
 		default:
 			v.InProgress++
 		}
-		row := dashProjectRow{Name: pu.Project.Name, Status: status, Mark: "—"}
+		row := dashProjectRow{Name: pu.Project.Name, Status: status, Mark: "-"}
 		if pu.FinalMark != nil {
 			row.Mark = strconv.Itoa(*pu.FinalMark)
 		}
@@ -736,7 +736,7 @@ func (h *handlers) dashPoints(ctx context.Context, user auth.User, tok string) (
 		// Le solde vient de /v2/me : autant l'afficher même sans historique.
 		v := dashPointsView{Current: me.CorrectionPoint}
 		if scopeForbidden(err) {
-			v.Note = "L'historique n'est pas lisible avec le scope « public » de l'application — le solde, lui, est à jour."
+			v.Note = "L'historique n'est pas lisible avec le scope « public » de l'application - le solde, lui, est à jour."
 		} else {
 			v.Note = "Historique momentanément indisponible (API 42)."
 		}
@@ -950,7 +950,7 @@ func (h *handlers) dashPromo(_ context.Context, user auth.User, _ string) (any, 
 	}
 	rows, _ := h.pool.Score(month, strconv.Itoa(year))
 	if len(rows) == 0 {
-		v.Unavailable, v.Reason = true, "Classement pas encore chargé — repasse dans une minute."
+		v.Unavailable, v.Reason = true, "Classement pas encore chargé - repasse dans une minute."
 		return v, nil
 	}
 

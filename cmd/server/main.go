@@ -83,7 +83,7 @@ func main() {
 	}
 	// Scope OAuth demandé à 42. Défaut « public » (profil + classement) ;
 	// mettre « public projects » pour débloquer l'agenda des créneaux de
-	// correction — à condition d'avoir aussi coché « projects » sur l'app côté
+	// correction - à condition d'avoir aussi coché « projects » sur l'app côté
 	// intra. Changer ce scope oblige les utilisateurs à se reconnecter (le
 	// nouveau droit n'est porté que par un jeton fraîchement émis).
 	oauthScope := os.Getenv("MOULINETTE_42_SCOPE")

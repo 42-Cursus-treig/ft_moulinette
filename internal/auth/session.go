@@ -96,7 +96,7 @@ func (s *Store) FromRequest(r *http.Request) (User, bool) {
 // FreshToken renvoie un access token 42 utilisable pour la session de r, en
 // le rafraîchissant d'abord auprès de 42 si nécessaire. Les appels concurrents
 // d'une même session attendent le même refresh au lieu d'en déclencher
-// plusieurs — l'appel réseau se fait sous le verrou du token, qui ne bloque
+// plusieurs - l'appel réseau se fait sous le verrou du token, qui ne bloque
 // que cette session.
 func (s *Store) FreshToken(r *http.Request, cfg Config) (Token, error) {
 	cookie, err := r.Cookie(sessionCookie)

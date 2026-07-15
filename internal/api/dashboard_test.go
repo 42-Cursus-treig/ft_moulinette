@@ -104,7 +104,7 @@ func newMock42(t *testing.T) *mock42 {
 	return m
 }
 
-// mockMeScaleTeamsJSON : deux défenses où l'utilisateur corrige — une
+// mockMeScaleTeamsJSON : deux défenses où l'utilisateur corrige - une
 // imminente au corrigé révélé, une lointaine encore « invisible ».
 func mockMeScaleTeamsJSON() string {
 	now := time.Now()
@@ -430,7 +430,7 @@ func newScope403Mock(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// TestDashboardScopeInterdit : un 403 de scope est définitif — le panneau
+// TestDashboardScopeInterdit : un 403 de scope est définitif - le panneau
 // prend la forme « cadenas », sans bouton Réessayer qui ne servirait à rien.
 func TestDashboardScopeInterdit(t *testing.T) {
 	srv := newScope403Mock(t)
@@ -449,7 +449,7 @@ func TestDashboardScopeInterdit(t *testing.T) {
 }
 
 // TestDashboardPointsSansHistorique : l'historique en 403 ne condamne pas la
-// carte — le solde (issu de /v2/me) reste affiché avec une note.
+// carte - le solde (issu de /v2/me) reste affiché avec une note.
 func TestDashboardPointsSansHistorique(t *testing.T) {
 	srv := newScope403Mock(t)
 	defer srv.Close()
