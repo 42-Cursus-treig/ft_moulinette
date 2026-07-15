@@ -47,6 +47,7 @@ var dashCards = map[string]func(*handlers, context.Context, auth.User, string) (
 	"events":       (*handlers).dashEvents,
 	"promo":        (*handlers).dashPromo,
 	"exam":         (*handlers).dashExam,
+	"defenses":     (*handlers).dashDefenses,
 }
 
 // dashLocalCards se servent des données déjà en cache côté serveur (service

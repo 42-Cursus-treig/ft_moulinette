@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -134,6 +136,7 @@ func (s *ScaleUsers) UnmarshalJSON(b []byte) error {
 }
 
 type ScaleTeam struct {
+	ID         int        `json:"id"`
 	FinalMark  *int       `json:"final_mark"`
 	Comment    *string    `json:"comment"`
 	Feedback   *string    `json:"feedback"`
@@ -157,6 +160,44 @@ type Event struct {
 	Location string    `json:"location"`
 	BeginAt  time.Time `json:"begin_at"`
 	EndAt    time.Time `json:"end_at"`
+}
+
+// Slot est un créneau de disponibilité de correcteur (granule de 15 min côté
+// intra). Un slot réservé porte le scale_team de la défense.
+type Slot struct {
+	ID        int         `json:"id"`
+	BeginAt   time.Time   `json:"begin_at"`
+	EndAt     time.Time   `json:"end_at"`
+	ScaleTeam SlotBooking `json:"scale_team"`
+}
+
+// SlotBooking tolère les trois formes de scale_team d'un slot : null (slot
+// libre), la chaîne "invisible" (réservé, identité pas encore révélée) et
+// l'objet complet (réservé, révélé ~15 min avant la défense).
+type SlotBooking struct {
+	Present    bool // le slot est réservé
+	ID         int
+	BeginAt    time.Time
+	Correcteds ScaleUsers
+}
+
+func (b *SlotBooking) UnmarshalJSON(raw []byte) error {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	b.Present = true
+	if raw[0] == '"' {
+		return nil // "invisible"
+	}
+	var v struct {
+		ID         int        `json:"id"`
+		BeginAt    time.Time  `json:"begin_at"`
+		Correcteds ScaleUsers `json:"correcteds"`
+	}
+	if err := json.Unmarshal(raw, &v); err == nil {
+		b.ID, b.BeginAt, b.Correcteds = v.ID, v.BeginAt, v.Correcteds
+	}
+	return nil
 }
 
 // Me récupère le profil du token — la source de la moitié des cartes du
@@ -219,4 +260,54 @@ func (c *Client) Events(ctx context.Context, login, tok string, userID int) ([]E
 	var out []Event
 	err := c.get(ctx, login, tok, fmt.Sprintf("/v2/users/%d/events", userID), params, 15*time.Minute, &out)
 	return out, err
+}
+
+// MeScaleTeams liste les évaluations où l'utilisateur est correcteur (le
+// « Pending evaluations » de l'intra). TTL court : l'identité du corrigé se
+// révèle environ 15 minutes avant la défense, la carte doit la voir vite.
+func (c *Client) MeScaleTeams(ctx context.Context, login, tok string) ([]ScaleTeam, error) {
+	params := url.Values{}
+	params.Set("page[size]", "20")
+	var out []ScaleTeam
+	err := c.get(ctx, login, tok, "/v2/me/scale_teams", params, 45*time.Second, &out)
+	return out, err
+}
+
+// Slots renvoie les créneaux de l'utilisateur dont le début tombe dans
+// [from, to] — TTL court, l'agenda doit reflèter vite les réservations.
+func (c *Client) Slots(ctx context.Context, login, tok string, from, to time.Time) ([]Slot, error) {
+	params := url.Values{}
+	params.Set("range[begin_at]", from.UTC().Format(time.RFC3339)+","+to.UTC().Format(time.RFC3339))
+	params.Set("page[size]", "100")
+	var out []Slot
+	err := c.get(ctx, login, tok, "/v2/me/slots", params, 30*time.Second, &out)
+	return out, err
+}
+
+// CreateSlot poste une disponibilité [begin, end] ; l'intra la découpe en
+// granules de 15 min. Le cache des slots est invalidé pour que le calendrier
+// re-rendu juste après voie le nouveau créneau.
+func (c *Client) CreateSlot(ctx context.Context, login, tok string, userID int, begin, end time.Time) error {
+	form := url.Values{}
+	form.Set("slot[user_id]", strconv.Itoa(userID))
+	form.Set("slot[begin_at]", begin.UTC().Format(time.RFC3339))
+	form.Set("slot[end_at]", end.UTC().Format(time.RFC3339))
+	_, err := c.mutate(ctx, login, tok, http.MethodPost, "/v2/slots", form, "/v2/me/slots")
+	return err
+}
+
+// DeleteSlot supprime un slot (l'API 42 refuse d'elle-même les slots réservés).
+func (c *Client) DeleteSlot(ctx context.Context, login, tok string, slotID int) error {
+	_, err := c.mutate(ctx, login, tok, http.MethodDelete, fmt.Sprintf("/v2/slots/%d", slotID), nil, "/v2/me/slots")
+	return err
+}
+
+// Project renvoie le nom d'un projet — pour libeller les défenses à venir.
+// Peu de projets distincts pendant une piscine : cache long.
+func (c *Client) Project(ctx context.Context, login, tok string, id int) (string, error) {
+	var out struct {
+		Name string `json:"name"`
+	}
+	err := c.get(ctx, login, tok, fmt.Sprintf("/v2/projects/%d", id), nil, 24*time.Hour, &out)
+	return out.Name, err
 }

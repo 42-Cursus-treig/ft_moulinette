@@ -1,0 +1,76 @@
+{{define "agenda"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette — Agenda</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem('ft-moulinette-theme');
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+<script src="/static/agenda.js" defer></script>
+</head>
+<body class="dash-body">
+  <header>
+    <h1>Agenda</h1>
+    {{template "header_actions" .}}
+  </header>
+
+  <section id="agenda-root" class="brutal-card dash-card agenda-card" hx-get="/ui/slots" hx-trigger="load" hx-swap="innerHTML">
+    {{template "dash_loading" "Créneaux de correction"}}
+  </section>
+</body>
+</html>
+{{end}}
+
+{{define "agenda_calendar"}}
+<div class="dash-head">
+  <h2 class="dash-title">Créneaux de correction</h2>
+  <div class="ag-nav">
+    <span class="ag-week">{{.WeekLabel}}</span>
+    <button type="button" class="dash-retry" hx-get="/ui/slots?week={{.PrevWeek}}" hx-target="#agenda-root" hx-swap="innerHTML" aria-label="Semaine précédente">‹</button>
+    <button type="button" class="dash-retry" hx-get="/ui/slots" hx-target="#agenda-root" hx-swap="innerHTML">Aujourd'hui</button>
+    <button type="button" class="dash-retry" hx-get="/ui/slots?week={{.NextWeek}}" hx-target="#agenda-root" hx-swap="innerHTML" aria-label="Semaine suivante">›</button>
+  </div>
+</div>
+<p class="ag-hint">
+  Glisse verticalement sur un jour pour poser une disponibilité, clique sur ✕ pour la retirer.
+  <span class="ag-key free"></span> disponible
+  <span class="ag-key booked"></span> correction réservée
+</p>
+{{if .Err}}<p class="ag-error">{{.Err}}</p>{{end}}
+<div class="hm-scroll">
+  <div class="ag-grid" data-week="{{.Week}}" data-start="360" data-px15="11">
+    <div class="ag-gutter">
+      <div class="ag-gutter-head"></div>
+      {{range .Hours}}<span>{{.}}</span>{{end}}
+    </div>
+    {{range $d := .Days}}
+    <div class="ag-daywrap">
+      <div class="ag-dayhead{{if $d.Today}} today{{end}}">{{$d.Label}}</div>
+      <div class="ag-col{{if $d.Today}} today{{end}}" data-day="{{$d.Date}}" style="height: {{$.GridHeight}}px">
+        {{range $d.Blocks}}
+        <div class="ag-block {{if .Booked}}booked{{else}}free{{end}}" style="top: {{.Top}}px; height: {{.Height}}px"{{if .Countdown}} title="Défense {{.Countdown}}"{{end}}>
+          <span class="ag-block-label">{{.Label}}</span>
+          {{if .Booked}}
+            {{if .Who}}<a class="ag-who" href="{{.WhoURL}}" target="_blank" rel="noopener">{{.Who}} ↗</a>{{else}}<span class="ag-who">révélé ~15 min avant</span>{{end}}
+          {{else}}
+          <button type="button" class="ag-del" hx-post="/ui/slots/delete" hx-vals='{"ids": "{{.IDs}}", "week": "{{$.Week}}"}' hx-target="#agenda-root" hx-swap="innerHTML" aria-label="Supprimer ce créneau">✕</button>
+          {{end}}
+        </div>
+        {{end}}
+        {{if and $d.Today (ge $.NowTop 0)}}<div class="ag-now" style="top: {{$.NowTop}}px"></div>{{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+<p class="dash-foot">Les créneaux sont posés sur ton compte intra (par tranches de 15 min, heure de Paris). Un créneau réservé par une défense ne peut pas être retiré ici.</p>
+{{end}}

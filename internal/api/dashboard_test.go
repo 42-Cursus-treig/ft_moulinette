@@ -18,9 +18,13 @@ import (
 // mock42 sert des réponses réalistes de l'API 42 pour tester le dashboard
 // sans réseau (l'API réelle est de toute façon régulièrement en panne).
 type mock42 struct {
-	srv       *httptest.Server
-	tokenHits atomic.Int32
-	apiHits   atomic.Int32
+	srv           *httptest.Server
+	tokenHits     atomic.Int32
+	apiHits       atomic.Int32
+	slotHits      atomic.Int32 // GET /v2/me/slots
+	slotCreates   atomic.Int32
+	slotDeletes   atomic.Int32
+	lastSlotBegin atomic.Value // slot[begin_at] du dernier POST
 }
 
 func newMock42(t *testing.T) *mock42 {
@@ -73,9 +77,68 @@ func newMock42(t *testing.T) *mock42 {
 	   "team": {"name": "carol's team"}}
 	]`)
 	serve("/v2/users/1/events", mockEventsJSON())
+	serve("/v2/me/scale_teams", mockMeScaleTeamsJSON())
+	serve("/v2/projects/1318", `{"id": 1318, "name": "C Piscine Rush 00"}`)
+	mux.HandleFunc("GET /v2/me/slots", func(w http.ResponseWriter, r *http.Request) {
+		m.slotHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, mockSlotsJSON())
+	})
+	mux.HandleFunc("POST /v2/slots", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil || r.Form.Get("slot[user_id]") != "1" {
+			http.Error(w, "user_id attendu", http.StatusBadRequest)
+			return
+		}
+		m.slotCreates.Add(1)
+		m.lastSlotBegin.Store(r.Form.Get("slot[begin_at]"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `[]`)
+	})
+	mux.HandleFunc("DELETE /v2/slots/{id}", func(w http.ResponseWriter, r *http.Request) {
+		m.slotDeletes.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	m.srv = httptest.NewServer(mux)
 	return m
+}
+
+// mockMeScaleTeamsJSON : deux défenses où l'utilisateur corrige — une
+// imminente au corrigé révélé, une lointaine encore « invisible ».
+func mockMeScaleTeamsJSON() string {
+	now := time.Now()
+	return fmt.Sprintf(`[
+	  {"id": 501, "begin_at": "%s", "filled_at": null, "final_mark": null,
+	   "corrector": {"login": "alice"}, "correcteds": [{"login": "carol"}],
+	   "flag": {"name": "", "positive": false}, "team": {"name": "carol's team", "project_id": 1318}},
+	  {"id": 502, "begin_at": "%s", "filled_at": null, "final_mark": null,
+	   "corrector": {"login": "alice"}, "correcteds": "invisible",
+	   "flag": {"name": "", "positive": false}, "team": {"name": "someone's team", "project_id": 1318}}
+	]`,
+		now.Add(10*time.Minute).UTC().Format(time.RFC3339),
+		now.Add(17*time.Hour).UTC().Format(time.RFC3339))
+}
+
+// mockSlotsJSON : aujourd'hui, 2 granules libres contiguës (15h00–15h30),
+// une réservation « invisible » (16h00–16h30) et une réservation révélée.
+func mockSlotsJSON() string {
+	day := time.Now()
+	at := func(h, m int) string {
+		return time.Date(day.Year(), day.Month(), day.Day(), h, m, 0, 0, time.Local).UTC().Format(time.RFC3339)
+	}
+	return fmt.Sprintf(`[
+	  {"id": 201, "begin_at": "%s", "end_at": "%s", "scale_team": null},
+	  {"id": 202, "begin_at": "%s", "end_at": "%s", "scale_team": null},
+	  {"id": 203, "begin_at": "%s", "end_at": "%s", "scale_team": "invisible"},
+	  {"id": 204, "begin_at": "%s", "end_at": "%s", "scale_team": "invisible"},
+	  {"id": 205, "begin_at": "%s", "end_at": "%s", "scale_team": {"id": 9, "begin_at": "%s", "correcteds": [{"login": "bob"}]}}
+	]`,
+		at(15, 0), at(15, 15),
+		at(15, 15), at(15, 30),
+		at(16, 0), at(16, 15),
+		at(16, 15), at(16, 30),
+		at(17, 0), at(17, 15), at(17, 0))
 }
 
 const mockMeJSON = `{
@@ -161,6 +224,10 @@ func newDashHandlers(t *testing.T, apiBase string) (*handlers, *http.ServeMux) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /dashboard", h.requireAuth(h.dashboardPage))
 	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireAuthFragment(h.dashboardCard))
+	mux.HandleFunc("GET /agenda", h.requireAuth(h.agendaPage))
+	mux.HandleFunc("GET /ui/slots", h.requireAuthFragment(h.slotsCalendar))
+	mux.HandleFunc("POST /ui/slots", h.requireAuthFragment(h.slotsCreate))
+	mux.HandleFunc("POST /ui/slots/delete", h.requireAuthFragment(h.slotsDelete))
 	return h, mux
 }
 
@@ -242,6 +309,8 @@ func TestDashboardCards(t *testing.T) {
 		// Sans service pool (tests), les cartes locales dégradent proprement.
 		{"promo", []string{"Service de classement inactif"}},
 		{"exam", []string{"Horaire des exams indisponible"}},
+		{"defenses", []string{"C Piscine Rush 00", "Je corrige", "profile.intra.42.fr/users/carol",
+			"révélé ~15 min avant", "On me corrige", "Gérer mes créneaux", "def-row soon"}},
 	}
 	for _, tc := range cases {
 		rec := getWithCookie(mux, "/ui/dashboard/"+tc.card, ck)

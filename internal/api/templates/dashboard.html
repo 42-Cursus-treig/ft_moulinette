@@ -27,6 +27,9 @@
     <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/hero" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Profil"}}
     </section>
+    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/defenses" hx-trigger="load, every 60s" hx-swap="innerHTML">
+      {{template "dash_loading" "Corrections à venir"}}
+    </section>
     <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/logtime" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Temps de présence"}}
     </section>
@@ -92,6 +95,30 @@
   <button type="button" class="dash-retry" hx-get="{{.Retry}}" hx-target="closest section" hx-swap="innerHTML">Réessayer</button>
   {{end}}
 </div>
+{{end}}
+
+{{define "dash_defenses"}}
+<div class="dash-head">
+  <h2 class="dash-title">Corrections à venir</h2>
+  <a class="dash-retry" href="/agenda">Gérer mes créneaux</a>
+</div>
+{{if .Note}}<p class="dash-empty">{{.Note}}</p>{{end}}
+{{if .Rows}}
+<ul class="def-list">
+  {{range .Rows}}
+  <li class="def-row{{if .Soon}} soon{{end}}">
+    <span class="def-dir {{if .Give}}give{{else}}take{{end}}">{{.Direction}}</span>
+    <div class="def-body">
+      <span class="def-project">{{.Project}}</span>
+      <span class="def-meta">{{.When}} · {{if .Who}}<a class="def-who" href="{{.WhoURL}}" target="_blank" rel="noopener">{{.Who}} ↗</a>{{else}}login révélé ~15 min avant{{end}}</span>
+    </div>
+    <span class="def-count">{{.Countdown}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else if not .Note}}
+<p class="dash-empty">Aucune correction planifiée. Pose des créneaux dans l'agenda pour en recevoir.</p>
+{{end}}
 {{end}}
 
 {{define "dash_hero"}}

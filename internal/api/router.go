@@ -49,6 +49,12 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.HandleFunc("GET /dashboard", h.requireAuth(h.dashboardPage))
 	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireAuthFragment(h.dashboardCard))
 
+	// Agenda des créneaux de correction : lecture + pose/retrait de slots 42.
+	mux.HandleFunc("GET /agenda", h.requireAuth(h.agendaPage))
+	mux.HandleFunc("GET /ui/slots", h.requireAuthFragment(h.slotsCalendar))
+	mux.HandleFunc("POST /ui/slots", h.requireAuthFragment(h.slotsCreate))
+	mux.HandleFunc("POST /ui/slots/delete", h.requireAuthFragment(h.slotsDelete))
+
 	// Interface web (htmx). L'accès des membres non-admins à chaque section
 	// est bloqué et renvoie vers la page "disabled.html".
 	mux.HandleFunc("GET /{$}", h.requireSectionPage(SectionMoulinette, h.index))

@@ -138,6 +138,68 @@ func (c *Client) get(ctx context.Context, login, accessToken, pathname string, p
 	return json.Unmarshal(body, out)
 }
 
+// mutate exécute une écriture (POST/DELETE en formulaire) : jamais de cache
+// ni de retry (un POST n'est pas idempotent), mais la même sérialisation, le
+// même throttle et le même disjoncteur que les lectures. En cas de succès,
+// les entrées de cache dont la clé commence par un des préfixes donnés sont
+// invalidées, pour que la lecture qui suit reflète l'écriture.
+func (c *Client) mutate(ctx context.Context, login, accessToken, method, pathname string, form url.Values, invalidatePrefixes ...string) ([]byte, error) {
+	us := c.user(login)
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	if time.Now().Before(us.downUntil) {
+		return nil, ErrDown
+	}
+	if wait := c.minInterval - time.Since(us.lastRequestAt); wait > 0 {
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	us.lastRequestAt = time.Now()
+
+	var body io.Reader
+	if form != nil {
+		body = strings.NewReader(form.Encode())
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.base+pathname, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	if form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, us.failLocked(fmt.Errorf("API 42 injoignable sur %s : %w", pathname, err))
+	}
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodySize))
+	resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		apiErr := &APIError{Status: resp.StatusCode, Path: pathname, Body: strings.TrimSpace(string(respBody[:min(len(respBody), 300)]))}
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			return nil, us.failLocked(apiErr)
+		}
+		us.failStreak = 0
+		return nil, apiErr
+	}
+
+	us.failStreak = 0
+	for _, prefix := range invalidatePrefixes {
+		for k := range us.cache {
+			if strings.HasPrefix(k, prefix) {
+				delete(us.cache, k)
+			}
+		}
+	}
+	return respBody, nil
+}
+
 // fetchLocked fait l'aller-retour HTTP (throttle, retry, disjoncteur).
 // Appelé sous us.mu : ne bloque que les requêtes de ce même utilisateur.
 func (c *Client) fetchLocked(ctx context.Context, us *userState, accessToken, pathname string, params url.Values) ([]byte, error) {
