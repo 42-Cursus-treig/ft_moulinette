@@ -63,14 +63,41 @@ func Run(job models.Job, report func(done, total int)) (*models.Result, error) {
 			exDir = filepath.Join(projectRoot, ex.Dir)
 		}
 
-		exResult := runExercise(exDir, ex, def.NormExtraRules)
+		var exResult models.ExerciseResult
+		switch ex.BuildMode {
+		case "script":
+			exResult = runScriptExercise(exDir, ex, def.NormExtraRules)
+		case "make":
+			exResult = runMakeExercise(exDir, ex, def.NormExtraRules)
+		default:
+			exResult = runExercise(exDir, ex, def.NormExtraRules)
+		}
 		result.ExerciseResults = append(result.ExerciseResults, exResult)
 		report(i+1, total)
 	}
 
 	result.Score = computeScore(result.ExerciseResults, def.Points)
-	result.Passed = result.Score >= 50
+	result.Passed = passed(result.ExerciseResults, def)
 	return result, nil
+}
+
+// passed décide du verdict global. Si le projet fixe RequiredExercises, il faut
+// que ce nombre d'exercices (les premiers, consécutivement) soient OK — un
+// barème de points élevé ne suffit pas. Sinon, on retombe sur le seuil
+// historique score >= 50.
+func passed(results []models.ExerciseResult, def *testdef.ProjectDef) bool {
+	if def.RequiredExercises > 0 {
+		if len(results) < def.RequiredExercises {
+			return false
+		}
+		for i := 0; i < def.RequiredExercises; i++ {
+			if results[i].Status != models.ExerciseOK {
+				return false
+			}
+		}
+		return true
+	}
+	return computeScore(results, def.Points) >= 50
 }
 
 // resolveProjectRoot localise le vrai dossier racine du projet à l'intérieur
