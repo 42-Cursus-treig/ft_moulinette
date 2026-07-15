@@ -47,7 +47,7 @@
 </p>
 {{if .Err}}<p class="ag-error">{{.Err}}</p>{{end}}
 <div class="hm-scroll">
-  <div class="ag-grid" data-week="{{.Week}}" data-start="360" data-px15="11">
+  <div class="ag-grid" data-week="{{.Week}}" data-start="360" data-end="1440" data-px15="11">
     <div class="ag-gutter">
       <div class="ag-gutter-head"></div>
       {{range .Hours}}<span>{{.}}</span>{{end}}
@@ -55,7 +55,8 @@
     {{range $d := .Days}}
     <div class="ag-daywrap">
       <div class="ag-dayhead{{if $d.Today}} today{{end}}">{{$d.Label}}</div>
-      <div class="ag-col{{if $d.Today}} today{{end}}" data-day="{{$d.Date}}" style="height: {{$.GridHeight}}px">
+      <div class="ag-col{{if $d.Today}} today{{end}}{{if $d.Past}} past{{end}}" data-day="{{$d.Date}}" data-min="{{$d.MinMin}}" style="height: {{$.GridHeight}}px">
+        {{if gt $d.PastPx 0}}<div class="ag-past" style="height: {{$d.PastPx}}px" aria-hidden="true"></div>{{end}}
         {{range $d.Blocks}}
         <div class="ag-block {{if .Booked}}booked{{else}}free{{end}}" style="top: {{.Top}}px; height: {{.Height}}px"{{if .Countdown}} title="Défense {{.Countdown}}"{{end}}>
           <span class="ag-block-label">{{.Label}}</span>

@@ -165,6 +165,9 @@ type agDay struct {
 	Label  string // « lun. 13 »
 	Date   string // 2026-07-13
 	Today  bool
+	Past   bool   // jour entièrement passé : rien de posable
+	PastPx int    // hauteur grisée depuis le haut de la colonne (heures révolues)
+	MinMin int    // première minute encore posable (borne le glisser-déposer)
 	Blocks []agBlock
 }
 
@@ -337,15 +340,36 @@ func buildAgenda(slots []fortytwo.Slot, week, now time.Time) agendaView {
 	}
 	for i := 0; i < 7; i++ {
 		day := week.AddDate(0, 0, i)
+		rel := daysApart(now, day) // <0 passé, 0 aujourd'hui, >0 futur
 		d := agDay{
-			Label: fmt.Sprintf("%s %d", frDaysShort[day.Weekday()], day.Day()),
-			Date:  day.Format("2006-01-02"),
-			Today: daysApart(day, now) == 0,
+			Label:  fmt.Sprintf("%s %d", frDaysShort[day.Weekday()], day.Day()),
+			Date:   day.Format("2006-01-02"),
+			Today:  rel == 0,
+			Past:   rel < 0,
+			MinMin: agDayStartMin, // jour futur : tout est posable
 		}
 		d.Blocks = groupSlots(perDay[i])
-		if d.Today {
+		switch {
+		case rel < 0:
+			// Jour révolu : toute la colonne est grisée et rien n'y est posable.
+			d.PastPx = v.GridHeight
+			d.MinMin = agDayEndMin
+		case rel == 0:
 			mins := now.Hour()*60 + now.Minute()
-			if mins >= agDayStartMin && mins < agDayEndMin {
+			switch {
+			case mins <= agDayStartMin:
+				// Avant l'ouverture de la grille : journée entièrement posable.
+			case mins >= agDayEndMin:
+				d.PastPx = v.GridHeight
+				d.MinMin = agDayEndMin
+			default:
+				// On ne peut poser qu'à partir du prochain quart d'heure ; on
+				// grise jusque-là, et la ligne « maintenant » marque l'instant.
+				d.MinMin = (mins/15)*15 + 15
+				if d.MinMin > agDayEndMin {
+					d.MinMin = agDayEndMin
+				}
+				d.PastPx = (d.MinMin - agDayStartMin) * agPxPer15 / 15
 				v.NowTop = (mins - agDayStartMin) * agPxPer15 / 15
 			}
 		}

@@ -72,6 +72,10 @@ func TestAgendaCalendar(t *testing.T) {
 	if !strings.Contains(body, `data-week="`+monday+`"`) {
 		t.Errorf("data-week=%s absent", monday)
 	}
+	// Bornes du glisser-déposer exposées au JS (fin de grille + min par colonne).
+	if !strings.Contains(body, `data-end="1440"`) || !strings.Contains(body, `data-min=`) {
+		t.Errorf("bornes data-end/data-min absentes du calendrier")
+	}
 }
 
 func TestAgendaCreate(t *testing.T) {
@@ -155,6 +159,39 @@ func TestParseWeek(t *testing.T) {
 	monday := parseWeek("")
 	if monday.Weekday() != time.Monday || monday.After(time.Now()) {
 		t.Errorf("parseWeek(\"\") = %v : lundi passé attendu", monday)
+	}
+}
+
+func TestBuildAgendaGreys(t *testing.T) {
+	week := time.Date(2026, 7, 13, 0, 0, 0, 0, time.Local) // lundi
+	now := time.Date(2026, 7, 15, 11, 44, 0, 0, time.Local) // mercredi 11:44
+	v := buildAgenda(nil, week, now)
+
+	if len(v.Days) != 7 {
+		t.Fatalf("%d jours, attendu 7", len(v.Days))
+	}
+	// Lundi et mardi sont révolus : colonne entièrement grisée, rien de posable.
+	for _, i := range []int{0, 1} {
+		d := v.Days[i]
+		if !d.Past || d.PastPx != v.GridHeight || d.MinMin != agDayEndMin {
+			t.Errorf("jour %d (passé) : Past=%v PastPx=%d MinMin=%d", i, d.Past, d.PastPx, d.MinMin)
+		}
+	}
+	// Mercredi = aujourd'hui : posable à partir du prochain quart (11:45 = 705),
+	// grisé jusque-là, ligne « maintenant » positionnée.
+	today := v.Days[2]
+	if !today.Today || today.Past || today.MinMin != 705 || today.PastPx <= 0 {
+		t.Errorf("aujourd'hui : Today=%v Past=%v MinMin=%d PastPx=%d", today.Today, today.Past, today.MinMin, today.PastPx)
+	}
+	if v.NowTop <= 0 {
+		t.Errorf("ligne maintenant : NowTop=%d, attendu > 0", v.NowTop)
+	}
+	// Jeudi et après : tout est posable, rien de grisé.
+	for _, i := range []int{3, 4, 5, 6} {
+		d := v.Days[i]
+		if d.Past || d.PastPx != 0 || d.MinMin != agDayStartMin {
+			t.Errorf("jour %d (futur) : Past=%v PastPx=%d MinMin=%d", i, d.Past, d.PastPx, d.MinMin)
+		}
 	}
 }
 

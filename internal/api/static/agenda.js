@@ -21,11 +21,19 @@
     return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2);
   }
 
+  // Première minute encore posable sur cette colonne (prochain quart d'heure
+  // pour aujourd'hui, ouverture de la grille pour un jour futur).
+  function colMin(col) {
+    return parseInt(col.dataset.min, 10) || parseInt(grid(col).dataset.start, 10);
+  }
+
   function currentRange(clientY) {
-    var m = minsFromY(drag.col, clientY);
+    var endMin = parseInt(grid(drag.col).dataset.end, 10);
+    var m = Math.max(drag.min, Math.min(endMin, minsFromY(drag.col, clientY)));
     var a = Math.min(drag.anchor, m);
     var b = Math.max(drag.anchor, m);
-    if (b - a < 15) b = a + 15; // au moins une granule
+    if (b - a < 15) b = Math.min(endMin, a + 15); // au moins une granule
+    if (b - a < 15) a = b - 15;                   // …même collé au bas de grille
     return [a, b];
   }
 
@@ -34,13 +42,16 @@
     if (e.button !== undefined && e.button !== 0) return;
     if (e.target.closest('.ag-block')) return; // pas de drag depuis un bloc existant
     var col = e.currentTarget;
+    if (col.classList.contains('past')) return; // jour révolu : rien à poser
     e.preventDefault();
     try { col.setPointerCapture(e.pointerId); } catch (err) { /* tactile ancien */ }
 
+    var mn = colMin(col);
     var ghost = document.createElement('div');
     ghost.className = 'ag-block ghost';
     col.appendChild(ghost);
-    drag = { col: col, anchor: minsFromY(col, e.clientY), ghost: ghost };
+    // L'ancre est bornée : impossible de commencer un créneau dans le passé.
+    drag = { col: col, min: mn, anchor: Math.max(mn, minsFromY(col, e.clientY)), ghost: ghost };
     update(e);
 
     col.addEventListener('pointermove', update);

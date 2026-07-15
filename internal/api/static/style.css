@@ -625,6 +625,7 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
   margin-bottom: 1rem;
 }
 .ranking-title { font-weight: 700; text-transform: uppercase; font-size: 1.05rem; }
+.ranking-meta-right { display: flex; align-items: center; gap: 0.5rem; }
 .ranking-updated {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 700;
@@ -634,6 +635,21 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
   border: 2px solid var(--border);
   background: var(--surface);
 }
+.exam-refresh {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 0.25rem 0.6rem;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.exam-refresh:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0px var(--border); }
+.exam-refresh:active { transform: translate(0, 0); box-shadow: none; }
+.htmx-request.exam-refresh, .htmx-request .exam-refresh { opacity: 0.5; pointer-events: none; }
 
 .ranking-table {
   width: 100%;
@@ -1540,18 +1556,41 @@ a.ag-who { text-decoration: underline; }
 .ag-block.booked .ag-who { color: var(--fail); }
 .ag-del {
   position: absolute;
-  top: 0;
-  right: 2px;
-  background: none;
+  top: 1px;
+  right: 1px;
+  /* appearance:none tue le fond natif blanc que macOS/Safari peint sur les
+     <button>, même avec background transparent. */
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
   border: none;
   color: inherit;
   font-family: inherit;
   font-weight: 700;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  line-height: 1;
   cursor: pointer;
-  padding: 1px 3px;
+  padding: 2px 3px;
+  border-radius: 3px;
 }
-.ag-del:hover { color: var(--fail); }
+.ag-del:hover { background: var(--fail); color: #fff; }
+
+/* Zones révolues : hachures grisées, aucune pose possible. */
+.ag-col.past { cursor: not-allowed; }
+.ag-past {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 0; /* sous les blocs (z-index:1), au-dessus du fond de colonne */
+  pointer-events: none;
+  background-color: color-mix(in srgb, var(--bg) 55%, transparent);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--text-muted) 16%, transparent) 6px 7px
+  );
+}
 .ag-now {
   position: absolute;
   left: 0;
