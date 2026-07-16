@@ -77,6 +77,19 @@ func TestRankingTemplates(t *testing.T) {
 			if state != "ready" {
 				continue
 			}
+			// Le bouton « Rafraîchir » (force=1) n'existe que sur l'onglet exam.
+			hasRefresh := strings.Contains(out.String(), `class="exam-refresh"`)
+			if tab == "exam" {
+				if !hasRefresh {
+					t.Errorf("tab=exam state=ready : bouton de rafraîchissement absent")
+				}
+				if !strings.Contains(out.String(), "force=1") {
+					t.Errorf("tab=exam state=ready : le bouton ne force pas le re-fetch (force=1 absent)")
+				}
+			} else if hasRefresh {
+				t.Errorf("tab=%s state=ready : bouton exam-refresh présent hors de l'onglet exam", tab)
+			}
+
 			if tab == "progress" {
 				if !strings.Contains(out.String(), "polyline") {
 					t.Errorf("tab=progress state=ready : aucune courbe dans le rendu")

@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -48,11 +49,15 @@ var dashCards = map[string]func(*handlers, context.Context, auth.User, string) (
 	"promo":        (*handlers).dashPromo,
 	"exam":         (*handlers).dashExam,
 	"defenses":     (*handlers).dashDefenses,
+	"progress":     (*handlers).dashProgress,
+	"ready":        (*handlers).dashReady,
+	"lookup":       (*handlers).dashLookup,
 }
 
 // dashLocalCards se servent des données déjà en cache côté serveur (service
-// pool) : pas besoin de token 42, elles marchent même si le refresh échoue.
-var dashLocalCards = map[string]bool{"promo": true, "exam": true}
+// pool) ou d'aucune donnée : pas besoin de token 42, elles marchent même si
+// le refresh échoue.
+var dashLocalCards = map[string]bool{"promo": true, "exam": true, "progress": true, "lookup": true}
 
 // dashboardCard (GET /ui/dashboard/{card}) rend une carte du dashboard.
 // Les erreurs sortent en 200 avec un panneau « Réessayer » : htmx ne swappe
@@ -1040,6 +1045,272 @@ func humanUntil(t time.Time) string {
 	default:
 		return "dans moins d'une minute"
 	}
+}
+
+// --- Carte progression personnelle (relevés quotidiens du service pool) ---
+
+type dashProgressView struct {
+	Unavailable bool
+	Reason      string
+	LevelSpark  string
+	ScoreSpark  string
+	LevelNow    string
+	ScoreNow    string
+	Days        int
+	FirstDate   string
+	LastDate    string
+}
+
+// dashProgress trace le niveau et le score de l'utilisateur jour par jour, à
+// partir des relevés que le serveur enregistre déjà pour le classement —
+// aucun appel API.
+func (h *handlers) dashProgress(_ context.Context, user auth.User, _ string) (any, error) {
+	v := dashProgressView{}
+	if h.pool == nil {
+		v.Unavailable, v.Reason = true, "Service de classement inactif."
+		return v, nil
+	}
+	month, year, ok := pool.CurrentSession(time.Now())
+	if !ok {
+		v.Unavailable, v.Reason = true, "Pas de piscine en cours."
+		return v, nil
+	}
+
+	var levels, scores []int
+	for _, snap := range h.pool.History(month, strconv.Itoa(year)) {
+		for _, row := range snap.Rows {
+			if row.Login != user.Login {
+				continue
+			}
+			levels = append(levels, int(row.Level*100))
+			scores = append(scores, row.Score)
+			if v.FirstDate == "" {
+				v.FirstDate = frSnapDate(snap.Date)
+			}
+			v.LastDate = frSnapDate(snap.Date)
+			break
+		}
+	}
+	if len(levels) < 2 {
+		v.Unavailable, v.Reason = true, "Pas encore assez de relevés — la courbe se construit un point par jour."
+		return v, nil
+	}
+	v.LevelSpark = sparkline(levels)
+	v.ScoreSpark = sparkline(scores)
+	v.LevelNow = fmt.Sprintf("%.2f", float64(levels[len(levels)-1])/100)
+	v.ScoreNow = fmtInt(scores[len(scores)-1])
+	v.Days = len(levels)
+	return v, nil
+}
+
+// frSnapDate reformate la clé de relevé « 2026-07-14 » en « mar. 14 juil. ».
+func frSnapDate(s string) string {
+	if t, err := time.ParseInLocation("2006-01-02", s, time.Local); err == nil {
+		return frDateShort(t)
+	}
+	return s
+}
+
+// --- Carte « prêt à rendre » (croisement moulinette locale × intra) ---
+
+type dashReadyRow struct {
+	Name       string
+	Score      int
+	State      string
+	StateClass string // wip | wait | ko
+}
+
+type dashReadyView struct {
+	Rows []dashReadyRow
+	Note string
+}
+
+// dashReady liste les exercices qui passent la moulinette mais ne sont pas
+// (encore) validés à l'intra. Seul /v2/me est consulté — déjà en cache pour
+// les autres cartes, donc coût API nul en pratique.
+func (h *handlers) dashReady(ctx context.Context, user auth.User, tok string) (any, error) {
+	me, err := h.ft.Me(ctx, user.Login, tok)
+	if err != nil {
+		return nil, err
+	}
+	v := dashReadyView{}
+	if h.queue == nil {
+		v.Note = "Moulinette inactive."
+		return v, nil
+	}
+
+	// Dernier verdict moulinette par exercice.
+	type verdict struct {
+		passed bool
+		score  int
+		at     time.Time
+	}
+	best := map[string]verdict{}
+	for _, job := range h.jobsForUser(user) {
+		if job.Result == nil || !jobFinished(job.Status) {
+			continue
+		}
+		key := normalizeProjectKey(job.Exercise)
+		if cur, ok := best[key]; !ok || job.CreatedAt.After(cur.at) {
+			best[key] = verdict{passed: job.Result.Passed, score: job.Result.Score, at: job.CreatedAt}
+		}
+	}
+
+	type intraState struct {
+		validated *bool
+		status    string
+	}
+	intra := map[string]intraState{}
+	for _, pu := range me.ProjectsUsers {
+		intra[normalizeProjectKey(pu.Project.Name)] = intraState{validated: pu.Validated, status: pu.Status}
+	}
+
+	var keys []string
+	for k, verd := range best {
+		if verd.passed {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		row := dashReadyRow{Name: prettyProjectKey(k), Score: best[k].score}
+		it, known := intra[k]
+		switch {
+		case known && it.validated != nil && *it.validated:
+			continue // déjà validé à l'intra : rien à signaler
+		case known && it.validated != nil:
+			row.State, row.StateClass = "échoué à l'intra — la moulinette passe, retente !", "ko"
+		case known && it.status == "waiting_for_correction":
+			row.State, row.StateClass = "en attente de correction à l'intra", "wait"
+		case known:
+			row.State, row.StateClass = "commencé à l'intra, pas encore rendu", "wip"
+		default:
+			row.State, row.StateClass = "pas encore rendu à l'intra", "wip"
+		}
+		v.Rows = append(v.Rows, row)
+	}
+	if len(v.Rows) == 0 {
+		v.Note = "Rien en attente : tout ce qui passe la moulinette est déjà validé (ou rien ne passe encore)."
+	}
+	return v, nil
+}
+
+// normalizeProjectKey aligne l'ID moulinette (« c02 ») et le nom de projet
+// intra (« C 02 ») sur une même clé.
+func normalizeProjectKey(s string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(s), " ", ""))
+}
+
+// prettyProjectKey remet une clé normalisée en libellé (« c02 » → « C 02 »).
+func prettyProjectKey(k string) string {
+	if len(k) >= 2 {
+		if head := k[0]; head >= 'a' && head <= 'z' {
+			rest := k[1:]
+			digitsOnly := true
+			for _, r := range rest {
+				if r < '0' || r > '9' {
+					digitsOnly = false
+					break
+				}
+			}
+			if digitsOnly {
+				return strings.ToUpper(k[:1]) + " " + rest
+			}
+		}
+	}
+	return strings.ToUpper(k[:1]) + k[1:]
+}
+
+// --- Carte recherche + fiche pisciner ---
+
+// dashLookup rend juste le formulaire ; la fiche arrive via /ui/user.
+func (h *handlers) dashLookup(_ context.Context, _ auth.User, _ string) (any, error) {
+	return nil, nil
+}
+
+type userCardView struct {
+	Err             string
+	Login           string
+	Displayname     string
+	Avatar          string
+	Title           string
+	CursusName      string
+	Level           string
+	Validated       int
+	CorrectionPoint int
+	Wallet          int
+	PoolBadge       string
+	IntraURL        string
+}
+
+// userCard (GET /ui/user?login=x) affiche la fiche publique d'un étudiant.
+// Un appel API par login recherché, en cache 15 min.
+func (h *handlers) userCard(w http.ResponseWriter, r *http.Request) {
+	user, _ := userFromContext(r.Context())
+	render := func(v userCardView) {
+		if err := h.tmpl.ExecuteTemplate(w, "user_card", v); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+
+	target := strings.ToLower(strings.TrimSpace(r.FormValue("login")))
+	if !icsLoginRe.MatchString(target) {
+		render(userCardView{Err: "Login invalide (lettres minuscules, chiffres, tirets)."})
+		return
+	}
+	tok, err := h.sessions.FreshToken(r, h.oauth)
+	if err != nil {
+		render(userCardView{Err: "Ta session a expiré — reconnecte-toi."})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	p, err := h.ft.UserProfile(ctx, user.Login, tok.AccessToken, target)
+	if err != nil {
+		var apiErr *fortytwo.APIError
+		if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+			render(userCardView{Err: "Aucun compte « " + target + " » sur l'intra."})
+			return
+		}
+		render(userCardView{Err: "L'API 42 n'a pas répondu — réessaie dans un instant."})
+		return
+	}
+
+	v := userCardView{
+		Login:           p.Login,
+		Displayname:     p.Displayname,
+		Avatar:          p.Image.Link,
+		CorrectionPoint: p.CorrectionPoint,
+		Wallet:          p.Wallet,
+		IntraURL:        "https://profile.intra.42.fr/users/" + url.PathEscape(p.Login),
+	}
+	if p.Image.Versions.Medium != "" {
+		v.Avatar = p.Image.Versions.Medium
+	}
+	for _, tu := range p.TitlesUsers {
+		if !tu.Selected {
+			continue
+		}
+		for _, t := range p.Titles {
+			if t.ID == tu.TitleID {
+				v.Title = strings.ReplaceAll(t.Name, "%login", p.Login)
+			}
+		}
+	}
+	if cu := bestCursus(p); cu != nil {
+		v.CursusName = cu.Cursus.Name
+		v.Level = fmt.Sprintf("%.2f", cu.Level)
+	}
+	for _, pu := range p.ProjectsUsers {
+		if pu.Validated != nil && *pu.Validated {
+			v.Validated++
+		}
+	}
+	if p.PoolMonth != "" && p.PoolYear != "" {
+		v.PoolBadge = "Piscine " + frMonthName(p.PoolMonth) + " " + p.PoolYear
+	}
+	render(v)
 }
 
 // --- Helpers de formatage français ---

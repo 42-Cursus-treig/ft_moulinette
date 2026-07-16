@@ -1,3 +1,13 @@
+{{define "exam_banner"}}
+{{if .ExamBanner}}
+<div class="exam-banner{{if .ExamBanner.Active}} active{{end}}" role="status">
+  <span class="exam-banner-label">{{.ExamBanner.Label}}</span>
+  <span class="exam-banner-count">{{.ExamBanner.Countdown}}</span>
+  <a href="/classement" class="exam-banner-link">classement en direct →</a>
+</div>
+{{end}}
+{{end}}
+
 {{define "header_actions"}}
 <div class="header-actions">
   {{if .IsAdmin}}

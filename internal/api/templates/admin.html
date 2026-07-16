@@ -74,6 +74,31 @@
     <input type="text" name="label" placeholder="libellé affiché" required>
     <button type="submit" class="admin-btn lock">Verrouiller</button>
   </form>
+
+  {{if .Stats}}
+  <h2 class="admin-subtitle">Activité moulinette — {{.JobsTotal}} corrections ({{.JobsToday}} aujourd'hui)</h2>
+  <div class="table-scroll">
+    <table class="stats-table">
+      <thead>
+        <tr><th>Exercice</th><th>Corrections</th><th>Réussite</th><th>Score moyen</th><th>Élèves</th></tr>
+      </thead>
+      <tbody>
+        {{range .Stats}}
+        <tr>
+          <td class="stats-ex">{{.Exercise}}</td>
+          <td>{{.Total}}</td>
+          <td>
+            <div class="stats-bar"><div class="stats-fill" style="width: {{.PassPct}}%"></div></div>
+            <span class="stats-pct">{{.PassPct}}%</span>
+          </td>
+          <td>{{.AvgScore}}</td>
+          <td>{{.Users}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
   <script src="/static/admin.js" defer></script>
 </body>
 </html>

@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -19,12 +22,14 @@ import (
 // --- Carte dashboard « Corrections à venir » ---
 
 type dashDefenseRow struct {
+	ID        int    // id du scale_team (clé stable pour les notifications JS)
 	Direction string // « Je corrige » | « On me corrige »
 	Give      bool   // true = je corrige
 	Project   string
 	Who       string // login de l'autre partie, "" tant que l'intra le cache
 	WhoURL    string
 	When      string
+	BeginRFC  string // instant RFC3339, pour le décompte côté client
 	Countdown string
 	Soon      bool // < 20 min : c'est imminent
 }
@@ -86,10 +91,12 @@ func (h *handlers) dashDefenses(ctx context.Context, user auth.User, tok string)
 		}
 		st := it.st
 		row := dashDefenseRow{
+			ID:        st.ID,
 			Give:      it.give,
 			Direction: "On me corrige",
 			Project:   defenseProject(ctx, h, user.Login, tok, st),
 			When:      frDateTimeShort(st.BeginAt),
+			BeginRFC:  st.BeginAt.UTC().Format(time.RFC3339),
 			Soon:      time.Until(st.BeginAt) < 20*time.Minute,
 		}
 		if it.give {
@@ -115,6 +122,22 @@ func (h *handlers) dashDefenses(ctx context.Context, user auth.User, tok string)
 		}
 		v.Rows = append(v.Rows, row)
 	}
+
+	// Alimente aussi l'export .ics (zéro appel API supplémentaire).
+	defs := make([]icsDefense, 0, len(v.Rows))
+	for i, it := range items {
+		if i == len(v.Rows) {
+			break
+		}
+		defs = append(defs, icsDefense{
+			ID:      it.st.ID,
+			Give:    it.give,
+			Project: v.Rows[i].Project,
+			Who:     v.Rows[i].Who,
+			Begin:   it.st.BeginAt,
+		})
+	}
+	h.icsSnap.setDefenses(user.Login, defs)
 	return v, nil
 }
 
@@ -152,13 +175,14 @@ func (h *handlers) agendaPage(w http.ResponseWriter, r *http.Request) {
 }
 
 type agBlock struct {
-	Top, Height int    // géométrie en px dans la colonne
-	Label       string // « 15:00 – 16:30 »
-	IDs         string // ids des slots 42 regroupés, "12,13,14"
-	Booked      bool
-	Who         string // login du corrigé si révélé
-	WhoURL      string
-	Countdown   string
+	Top, Height      int    // géométrie en px dans la colonne
+	StartMin, EndMin int    // bornes en minutes depuis minuit (pour le JS)
+	Label            string // « 15:00 – 16:30 »
+	IDs              string // ids des slots 42 regroupés, "12,13,14"
+	Booked           bool
+	Who              string // login du corrigé si révélé
+	WhoURL           string
+	Countdown        string
 }
 
 type agDay struct {
@@ -178,7 +202,8 @@ type agendaView struct {
 	Days               []agDay
 	Hours              []string
 	GridHeight         int
-	NowTop             int // px de la ligne « maintenant », -1 hors plage
+	NowTop             int    // px de la ligne « maintenant », -1 hors plage
+	ICSURL             string // abonnement calendrier (.ics)
 	Err                string
 }
 
@@ -187,81 +212,181 @@ func (h *handlers) slotsCalendar(w http.ResponseWriter, r *http.Request) {
 	h.renderAgenda(w, r, parseWeek(r.FormValue("week")), "")
 }
 
-// slotsCreate (POST /ui/slots) crée une disponibilité posée au glisser-déposer.
-func (h *handlers) slotsCreate(w http.ResponseWriter, r *http.Request) {
-	user, _ := userFromContext(r.Context())
-	week := parseWeek(r.FormValue("week"))
+// --- Enregistrement différé ---
+//
+// L'agenda s'édite entièrement en local : poser, déplacer, étirer, retirer ne
+// touchent pas l'API 42. Le bouton « Enregistrer » envoie le lot ici, qui
+// l'applique chez 42 : suppressions d'abord (elles libèrent la place), puis
+// créations. Quand 42 refuse une création (place déjà prise côté serveur),
+// elle est décalée de 15 min en 15 min jusqu'à trouver un trou (2 h maxi) ;
+// chaque décalage est signalé dans la réponse pour rester transparent.
 
-	day, errDay := time.ParseInLocation("2006-01-02", r.FormValue("day"), time.Local)
-	startMin, _ := strconv.Atoi(r.FormValue("start"))
-	endMin, _ := strconv.Atoi(r.FormValue("end"))
-	if errDay != nil || startMin%15 != 0 || endMin%15 != 0 ||
-		startMin < agDayStartMin || endMin > agDayEndMin || endMin-startMin < 15 {
-		h.renderAgenda(w, r, week, "Créneau invalide.")
-		return
-	}
-	begin := day.Add(time.Duration(startMin) * time.Minute)
-	end := day.Add(time.Duration(endMin) * time.Minute)
-	if !begin.After(time.Now()) {
-		h.renderAgenda(w, r, week, "Impossible de poser un créneau dans le passé.")
-		return
-	}
-
-	tok, err := h.sessions.FreshToken(r, h.oauth)
-	if err != nil {
-		h.renderAgenda(w, r, week, "Ta session a expiré — reconnecte-toi.")
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-	if err := h.ft.CreateSlot(ctx, user.Login, tok.AccessToken, user.ID, begin, end); err != nil {
-		h.renderAgenda(w, r, week, agendaErrMsg("poser ce créneau", err))
-		return
-	}
-	h.renderAgenda(w, r, week, "")
+type slotSyncRange struct {
+	Day   string `json:"day"`
+	Start int    `json:"start"`
+	End   int    `json:"end"`
 }
 
-// slotsDelete (POST /ui/slots/delete) retire un bloc de disponibilité : un
-// bloc affiché regroupe plusieurs granules de 15 min, on les supprime toutes.
-func (h *handlers) slotsDelete(w http.ResponseWriter, r *http.Request) {
-	user, _ := userFromContext(r.Context())
-	week := parseWeek(r.FormValue("week"))
+type slotSyncRequest struct {
+	Delete []int           `json:"delete"`
+	Create []slotSyncRange `json:"create"`
+}
 
-	var ids []int
-	for _, part := range strings.Split(r.FormValue("ids"), ",") {
-		if id, err := strconv.Atoi(strings.TrimSpace(part)); err == nil && id > 0 {
-			ids = append(ids, id)
-		}
+type slotSyncResult struct {
+	Saved   int      `json:"saved"`
+	Shifted []string `json:"shifted"`
+	Failed  []string `json:"failed"`
+}
+
+const slotShiftMax = 8 * 15 // décalage maximal en cas de conflit : 2 h
+
+// slotsSync (POST /ui/slots/sync) applique le lot de modifications locales.
+func (h *handlers) slotsSync(w http.ResponseWriter, r *http.Request) {
+	user, _ := userFromContext(r.Context())
+
+	var req slotSyncRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		slotError(w, http.StatusBadRequest, "Requête illisible.")
+		return
 	}
-	if len(ids) == 0 || len(ids) > 32 {
-		h.renderAgenda(w, r, week, "Créneau invalide.")
+	if len(req.Delete) > 128 || len(req.Create) > 64 || (len(req.Delete) == 0 && len(req.Create) == 0) {
+		slotError(w, http.StatusBadRequest, "Lot de modifications invalide.")
 		return
 	}
 
 	tok, err := h.sessions.FreshToken(r, h.oauth)
 	if err != nil {
-		h.renderAgenda(w, r, week, "Ta session a expiré — reconnecte-toi.")
+		slotError(w, http.StatusUnauthorized, "Ta session a expiré — reconnecte-toi.")
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	// Chaque appel 42 est espacé de ~550 ms : un gros lot prend son temps.
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	for _, id := range ids {
+
+	res := slotSyncResult{Shifted: []string{}, Failed: []string{}}
+
+	refused := 0
+	for _, id := range req.Delete {
+		if id <= 0 {
+			continue
+		}
 		if err := h.ft.DeleteSlot(ctx, user.Login, tok.AccessToken, id); err != nil {
-			h.renderAgenda(w, r, week, agendaErrMsg("retirer ce créneau", err))
+			var apiErr *fortytwo.APIError
+			if errors.As(err, &apiErr) && apiErr.Status < 500 {
+				// Granule refusée (réservée ou verrouillée par l'intra) : on la
+				// laisse en place et on continue le reste du lot.
+				log.Printf("[agenda] suppression refusée (slot %d) : %v", id, err)
+				refused++
+				continue
+			}
+			slotFail(w, "enregistrer tes créneaux", err) // panne : inutile d'insister
 			return
 		}
 	}
-	h.renderAgenda(w, r, week, "")
+	if refused > 0 {
+		res.Failed = append(res.Failed, fmt.Sprintf("%d suppression(s) refusée(s) — créneau(x) sans doute réservé(s)", refused))
+	}
+
+	now := time.Now()
+	for _, c := range req.Create {
+		day, errDay := time.ParseInLocation("2006-01-02", c.Day, time.Local)
+		if errDay != nil || c.Start%15 != 0 || c.End%15 != 0 ||
+			c.Start < agDayStartMin || c.End > agDayEndMin || c.End-c.Start < 15 {
+			res.Failed = append(res.Failed, "un créneau invalide a été ignoré")
+			continue
+		}
+		want := fmt.Sprintf("%s %02d:%02d", frDateShort(day), c.Start/60, c.Start%60)
+		if daysApart(now, day) < 0 {
+			res.Failed = append(res.Failed, want+" est déjà passé")
+			continue
+		}
+
+		saved := false
+		for shift := 0; shift <= slotShiftMax && c.End+shift <= agDayEndMin; shift += 15 {
+			begin := day.Add(time.Duration(c.Start+shift) * time.Minute)
+			if !begin.After(now) {
+				continue // ce début est déjà passé : on essaie plus tard dans la journée
+			}
+			end := day.Add(time.Duration(c.End+shift) * time.Minute)
+			_, err := h.ft.CreateSlot(ctx, user.Login, tok.AccessToken, user.ID, begin, end)
+			if err == nil {
+				res.Saved++
+				if shift > 0 {
+					res.Shifted = append(res.Shifted, fmt.Sprintf("%s décalé à %02d:%02d", want, (c.Start+shift)/60, (c.Start+shift)%60))
+				}
+				saved = true
+				break
+			}
+			// 403 sur POST /v2/slots = scope manquant, 401 = session morte :
+			// tout le lot est condamné, on s'arrête là.
+			if scopeForbidden(err) || isUnauthorized(err) {
+				slotFail(w, "enregistrer tes créneaux", err)
+				return
+			}
+			var apiErr *fortytwo.APIError
+			if errors.As(err, &apiErr) && apiErr.Status < 500 {
+				continue // refus applicatif (chevauchement côté 42…) : 15 min plus tard
+			}
+			slotFail(w, "enregistrer tes créneaux", err)
+			return
+		}
+		if !saved {
+			res.Failed = append(res.Failed, want+" n'a pas trouvé de place (décalages jusqu'à 2 h essayés)")
+		}
+	}
+
+	writeJSON(w, http.StatusOK, res)
 }
+
+func isUnauthorized(err error) bool {
+	var apiErr *fortytwo.APIError
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized
+}
+
+// slotFail journalise l'échec (l'agenda échouait en silence dans les logs
+// serveur) puis répond au client avec le code et le message adaptés.
+func slotFail(w http.ResponseWriter, action string, err error) {
+	log.Printf("[agenda] échec de %s : %v", action, err)
+	slotError(w, slotStatus(err), agendaErrMsg(action, err))
+}
+
+func slotError(w http.ResponseWriter, status int, msg string) {
+	http.Error(w, msg, status)
+}
+
+// slotStatus mappe une erreur 42 sur un code que le client distingue : 403
+// (scope), 502 (panne/5xx) ou 409 (refus applicatif).
+func slotStatus(err error) int {
+	if scopeForbidden(err) {
+		return http.StatusForbidden
+	}
+	var apiErr *fortytwo.APIError
+	if errors.As(err, &apiErr) {
+		if apiErr.Status >= 500 {
+			return http.StatusBadGateway
+		}
+		return http.StatusConflict
+	}
+	return http.StatusBadGateway
+}
+
 
 // agendaErrMsg met en français l'échec d'une écriture de slot.
 func agendaErrMsg(action string, err error) string {
-	if scopeForbidden(err) {
-		return "L'application 42 n'a pas le droit de gérer les slots (scope « public »). Passe par l'intra pour " + action + "."
-	}
 	var apiErr *fortytwo.APIError
-	if errors.As(err, &apiErr) && apiErr.Status < 500 {
-		return "42 a refusé de " + action + " (" + strconv.Itoa(apiErr.Status) + ")."
+	if errors.As(err, &apiErr) {
+		switch {
+		// 403 sur une granule précise (/v2/slots/<id>) : ce n'est pas un
+		// problème de scope — l'intra refuse de toucher CE créneau, très
+		// probablement parce qu'il vient d'être réservé pour une défense (ou
+		// qu'il est verrouillé à l'approche de son heure).
+		case apiErr.Status == http.StatusForbidden && strings.HasPrefix(apiErr.Path, "/v2/slots/"):
+			return "42 refuse de toucher ce créneau : il est sans doute déjà réservé pour une défense (ou verrouillé par l'intra). Le calendrier se recharge."
+		case apiErr.Status == http.StatusForbidden:
+			return "L'application 42 n'a pas le droit de gérer les slots — il manque le scope « projects » (à cocher sur l'app intra + MOULINETTE_42_SCOPE, puis reconnexion)."
+		case apiErr.Status < 500:
+			return "42 a refusé de " + action + " (" + strconv.Itoa(apiErr.Status) + ")."
+		}
 	}
 	return "L'API 42 n'a pas répondu — impossible de " + action + " pour l'instant."
 }
@@ -286,11 +411,78 @@ func (h *handlers) renderAgenda(w http.ResponseWriter, r *http.Request, week tim
 		return
 	}
 
+	// Alimente l'export .ics au passage : le calendrier abonné reflète ce que
+	// l'utilisateur a vu ici, sans coûter le moindre appel API supplémentaire.
+	h.icsSnap.setSlots(user.Login, week.Format("2006-01-02"), slots)
+
 	v := buildAgenda(slots, week, time.Now())
 	v.Err = errMsg
+	v.ICSURL = h.icsURL(user.Login)
 	if err := h.tmpl.ExecuteTemplate(w, "agenda_calendar", v); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// slotsCopyWeek (GET /ui/slots/copy?week=YYYY-MM-DD) renvoie, en JSON, les
+// dispos libres de la semaine PRÉCÉDENTE projetées sur la semaine demandée :
+// le client en fait des blocs locaux (brouillon), rien n'est poussé chez 42.
+// Coût : un seul appel API (mis en cache).
+func (h *handlers) slotsCopyWeek(w http.ResponseWriter, r *http.Request) {
+	user, _ := userFromContext(r.Context())
+	week := parseWeek(r.FormValue("week"))
+
+	tok, err := h.sessions.FreshToken(r, h.oauth)
+	if err != nil {
+		slotError(w, http.StatusUnauthorized, "Ta session a expiré — reconnecte-toi.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	prev := week.AddDate(0, 0, -7)
+	slots, err := h.ft.Slots(ctx, user.Login, tok.AccessToken, prev, week)
+	if err != nil {
+		slotFail(w, "recopier la semaine précédente", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"create": shiftFreeRanges(slots, prev, 7)})
+}
+
+// shiftFreeRanges fusionne les granules LIBRES d'une semaine en plages et les
+// projette shiftDays plus tard, bornées à la grille de l'agenda.
+func shiftFreeRanges(slots []fortytwo.Slot, weekFrom time.Time, shiftDays int) []slotSyncRange {
+	var free []fortytwo.Slot
+	for _, s := range slots {
+		if !s.ScaleTeam.Present {
+			free = append(free, s)
+		}
+	}
+	out := []slotSyncRange{}
+	for _, blk := range mergeSlots(free) {
+		begin := blk.begin.In(time.Local)
+		end := blk.end.In(time.Local)
+		dayIdx := daysApart(weekFrom, begin)
+		if dayIdx < 0 || dayIdx > 6 {
+			continue
+		}
+		startMin := begin.Hour()*60 + begin.Minute()
+		endMin := end.Hour()*60 + end.Minute()
+		if endMin == 0 {
+			endMin = 24 * 60
+		}
+		if startMin < agDayStartMin {
+			startMin = agDayStartMin
+		}
+		if endMin > agDayEndMin {
+			endMin = agDayEndMin
+		}
+		if endMin-startMin < 15 {
+			continue
+		}
+		day := weekFrom.AddDate(0, 0, dayIdx+shiftDays)
+		out = append(out, slotSyncRange{Day: day.Format("2006-01-02"), Start: startMin, End: endMin})
+	}
+	return out
 }
 
 // renderAgendaError réutilise le panneau d'erreur du dashboard, avec un
@@ -333,6 +525,12 @@ func buildAgenda(slots []fortytwo.Slot, week, now time.Time) agendaView {
 
 	perDay := make([][]fortytwo.Slot, 7)
 	for _, s := range slots {
+		// Les créneaux révolus (déjà passés) encombrent inutilement la grille :
+		// on ne les affiche pas. Un créneau en cours (début passé, fin future)
+		// reste visible.
+		if !s.EndAt.After(now) {
+			continue
+		}
 		idx := daysApart(week, s.BeginAt.In(time.Local))
 		if idx >= 0 && idx < 7 {
 			perDay[idx] = append(perDay[idx], s)
@@ -437,11 +635,13 @@ func blockFrom(a slotRun) (agBlock, bool) {
 	}
 
 	b := agBlock{
-		Top:    (startMin - agDayStartMin) * agPxPer15 / 15,
-		Height: (endMin-startMin)*agPxPer15/15 - 2,
-		Label:  fmt.Sprintf("%02d:%02d – %02d:%02d", begin.Hour(), begin.Minute(), endMin/60%24, endMin%60),
-		IDs:    strings.Join(a.ids, ","),
-		Booked: a.booked,
+		Top:      (startMin - agDayStartMin) * agPxPer15 / 15,
+		Height:   (endMin-startMin)*agPxPer15/15 - 2,
+		StartMin: startMin,
+		EndMin:   endMin,
+		Label:    fmt.Sprintf("%02d:%02d – %02d:%02d", begin.Hour(), begin.Minute(), endMin/60%24, endMin%60),
+		IDs:      strings.Join(a.ids, ","),
+		Booked:   a.booked,
 	}
 	if a.booked {
 		for _, cu := range a.bk.Correcteds {

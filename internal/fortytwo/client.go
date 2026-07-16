@@ -27,8 +27,8 @@ import (
 const (
 	defaultMinInterval = 550 * time.Millisecond // limite API 42 : 2 req/s par token
 	maxAttempts        = 2                      // 1 seul retry : une carte doit échouer vite
-	breakerThreshold   = 2                      // échecs consécutifs avant d'ouvrir le disjoncteur
-	breakerCooldown    = 90 * time.Second
+	breakerThreshold   = 3                      // échecs consécutifs avant d'ouvrir le disjoncteur
+	breakerCooldown    = 45 * time.Second
 	errorCacheTTL      = 30 * time.Second // mémoire courte d'un échec, pour ne pas marteler l'API
 	maxBodySize        = 4 << 20          // /v2/me peut être volumineux, mais pas à ce point
 )
@@ -148,9 +148,10 @@ func (c *Client) mutate(ctx context.Context, login, accessToken, method, pathnam
 	us.mu.Lock()
 	defer us.mu.Unlock()
 
-	if time.Now().Before(us.downUntil) {
-		return nil, ErrDown
-	}
+	// Une mutation est toujours déclenchée explicitement par l'utilisateur, une
+	// à la fois : elle ignore le disjoncteur (ouvert par des lectures de fond
+	// en échec) et tente réellement l'appel — sinon poser/déplacer un créneau
+	// serait bloqué juste parce qu'une carte du dashboard a flanché.
 	if wait := c.minInterval - time.Since(us.lastRequestAt); wait > 0 {
 		select {
 		case <-time.After(wait):
@@ -185,11 +186,11 @@ func (c *Client) mutate(ctx context.Context, login, accessToken, method, pathnam
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
 			return nil, us.failLocked(apiErr)
 		}
-		us.failStreak = 0
+		us.okLocked()
 		return nil, apiErr
 	}
 
-	us.failStreak = 0
+	us.okLocked()
 	for _, prefix := range invalidatePrefixes {
 		for k := range us.cache {
 			if strings.HasPrefix(k, prefix) {
@@ -263,7 +264,7 @@ func (c *Client) fetchLocked(ctx context.Context, us *userState, accessToken, pa
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
 			resp.Body.Close()
-			us.failStreak = 0
+			us.okLocked()
 			return nil, &APIError{Status: resp.StatusCode, Path: u.Path, Body: strings.TrimSpace(string(body))}
 		}
 
@@ -272,7 +273,7 @@ func (c *Client) fetchLocked(ctx context.Context, us *userState, accessToken, pa
 		if err != nil {
 			return nil, us.failLocked(fmt.Errorf("lecture de la réponse 42 sur %s : %w", u.Path, err))
 		}
-		us.failStreak = 0
+		us.okLocked()
 		return body, nil
 	}
 }
@@ -287,6 +288,13 @@ func (us *userState) failLocked(err error) error {
 		us.failStreak = 0
 	}
 	return err
+}
+
+// okLocked : une requête a abouti (ou a reçu une réponse saine type 4xx) —
+// l'API est vivante, on referme le disjoncteur.
+func (us *userState) okLocked() {
+	us.failStreak = 0
+	us.downUntil = time.Time{}
 }
 
 // gcLocked purge les entrées expirées pour qu'une longue session ne fasse

@@ -36,8 +36,17 @@
       {{else}}🏁 {{.ExamLabel}}{{end}}
       - Piscine {{.MonthLabel}} {{.Year}}
     </span>
-    <span class="ranking-updated" title="Actualisation automatique toutes les {{.RefreshSec}} secondes">
-      MàJ {{.UpdatedAt.Format "15:04:05"}}
+    <span class="ranking-meta-right">
+      <span class="ranking-updated" title="Actualisation automatique toutes les {{.RefreshSec}} secondes">
+        MàJ {{.UpdatedAt.Format "15:04:05"}}
+      </span>
+      {{if eq .Tab "exam"}}
+      <button type="button" class="exam-refresh"
+              title="Forcer la récupération des inscrits à cet exam depuis l'API 42"
+              hx-get="{{.SelfURL}}&force=1" hx-target="#ranking-content" hx-swap="innerHTML">
+        ↻ Rafraîchir
+      </button>
+      {{end}}
     </span>
   </div>
 

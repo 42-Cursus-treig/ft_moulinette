@@ -23,6 +23,8 @@
     {{template "header_actions" .}}
   </header>
 
+  {{template "exam_banner" .}}
+
   <section id="agenda-root" class="brutal-card dash-card agenda-card" hx-get="/ui/slots" hx-trigger="load" hx-swap="innerHTML">
     {{template "dash_loading" "Créneaux de correction"}}
   </section>
@@ -35,17 +37,26 @@
   <h2 class="dash-title">Créneaux de correction</h2>
   <div class="ag-nav">
     <span class="ag-week">{{.WeekLabel}}</span>
+    <span id="ag-total" class="ag-total" title="Heures de disponibilité posées cette semaine"></span>
+    <button type="button" id="ag-copy" class="dash-retry" title="Recopier les dispos de la semaine précédente (en brouillon, à enregistrer)">⧉ Recopier sem. préc.</button>
     <button type="button" class="dash-retry" hx-get="/ui/slots?week={{.PrevWeek}}" hx-target="#agenda-root" hx-swap="innerHTML" aria-label="Semaine précédente">‹</button>
     <button type="button" class="dash-retry" hx-get="/ui/slots" hx-target="#agenda-root" hx-swap="innerHTML">Aujourd'hui</button>
     <button type="button" class="dash-retry" hx-get="/ui/slots?week={{.NextWeek}}" hx-target="#agenda-root" hx-swap="innerHTML" aria-label="Semaine suivante">›</button>
   </div>
 </div>
 <p class="ag-hint">
-  Glisse verticalement sur un jour pour poser une disponibilité, clique sur ✕ pour la retirer.
+  Glisse sur un jour pour poser une dispo · déplace un bloc en le saisissant · étire-le par ses bords · ✕ pour le retirer.
+  Rien ne part chez 42 avant d'appuyer sur <strong>Enregistrer</strong>.
   <span class="ag-key free"></span> disponible
   <span class="ag-key booked"></span> correction réservée
 </p>
 {{if .Err}}<p class="ag-error">{{.Err}}</p>{{end}}
+<div id="ag-flash" class="ag-flash" role="alert" hidden></div>
+<div id="ag-savebar" class="ag-savebar" hidden>
+  <span id="ag-savecount"></span>
+  <button type="button" id="ag-save" class="dash-retry save">Enregistrer</button>
+  <button type="button" id="ag-discard" class="dash-retry">Annuler</button>
+</div>
 <div class="hm-scroll">
   <div class="ag-grid" data-week="{{.Week}}" data-start="360" data-end="1440" data-px15="11">
     <div class="ag-gutter">
@@ -58,14 +69,21 @@
       <div class="ag-col{{if $d.Today}} today{{end}}{{if $d.Past}} past{{end}}" data-day="{{$d.Date}}" data-min="{{$d.MinMin}}" style="height: {{$.GridHeight}}px">
         {{if gt $d.PastPx 0}}<div class="ag-past" style="height: {{$d.PastPx}}px" aria-hidden="true"></div>{{end}}
         {{range $d.Blocks}}
-        <div class="ag-block {{if .Booked}}booked{{else}}free{{end}}" style="top: {{.Top}}px; height: {{.Height}}px"{{if .Countdown}} title="Défense {{.Countdown}}"{{end}}>
+        {{if .Booked}}
+        <div class="ag-block booked" data-booked="1" data-start="{{.StartMin}}" data-end="{{.EndMin}}" style="top: {{.Top}}px; height: {{.Height}}px"{{if .Countdown}} title="Défense {{.Countdown}}"{{end}}>
           <span class="ag-block-label">{{.Label}}</span>
-          {{if .Booked}}
-            {{if .Who}}<a class="ag-who" href="{{.WhoURL}}" target="_blank" rel="noopener">{{.Who}} ↗</a>{{else}}<span class="ag-who">révélé ~15 min avant</span>{{end}}
-          {{else}}
-          <button type="button" class="ag-del" hx-post="/ui/slots/delete" hx-vals='{"ids": "{{.IDs}}", "week": "{{$.Week}}"}' hx-target="#agenda-root" hx-swap="innerHTML" aria-label="Supprimer ce créneau">✕</button>
-          {{end}}
+          {{if .Who}}<a class="ag-who" href="{{.WhoURL}}" target="_blank" rel="noopener">{{.Who}} ↗</a>{{else}}<span class="ag-who">révélé ~15 min avant</span>{{end}}
         </div>
+        {{else}}
+        <div class="ag-block free" data-ids="{{.IDs}}" data-start="{{.StartMin}}" data-end="{{.EndMin}}" style="top: {{.Top}}px; height: {{.Height}}px">
+          <span class="ag-handle top" aria-hidden="true"></span>
+          <span class="ag-block-label">{{.Label}}</span>
+          <button type="button" class="ag-del" aria-label="Supprimer ce créneau">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"></line><line x1="19" y1="5" x2="5" y2="19"></line></svg>
+          </button>
+          <span class="ag-handle bottom" aria-hidden="true"></span>
+        </div>
+        {{end}}
         {{end}}
         {{if and $d.Today (ge $.NowTop 0)}}<div class="ag-now" style="top: {{$.NowTop}}px"></div>{{end}}
       </div>
@@ -73,5 +91,8 @@
     {{end}}
   </div>
 </div>
-<p class="dash-foot">Les créneaux sont posés sur ton compte intra (par tranches de 15 min, heure de Paris). Un créneau réservé par une défense ne peut pas être retiré ici.</p>
+<p class="dash-foot">
+  Les créneaux sont posés sur ton compte intra (par tranches de 15 min, heure de Paris). Un créneau réservé par une défense ne peut pas être retiré ici.
+  · <a class="dash-link" href="{{.ICSURL}}">Calendrier .ics</a> — télécharge, ou abonne-toi à cette URL depuis Apple/Google Calendar (elle reflète tes dernières visites ici, sans consommer le quota API).
+</p>
 {{end}}

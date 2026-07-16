@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/static/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
+<script src="/static/dashboard.js" defer></script>
 </head>
 <body class="dash-body">
   <header>
@@ -23,11 +24,13 @@
     {{template "header_actions" .}}
   </header>
 
+  {{template "exam_banner" .}}
+
   <main class="dash-grid">
     <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/hero" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Profil"}}
     </section>
-    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/defenses" hx-trigger="load, every 60s" hx-swap="innerHTML">
+    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/defenses" hx-trigger="load, every 120s [document.visibilityState === 'visible']" hx-swap="innerHTML">
       {{template "dash_loading" "Corrections à venir"}}
     </section>
     <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/logtime" hx-trigger="load" hx-swap="innerHTML">
@@ -45,8 +48,14 @@
     <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/promo" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Classement promo"}}
     </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/exam" hx-trigger="load, every 180s" hx-swap="innerHTML">
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/exam" hx-trigger="load, every 180s [document.visibilityState === 'visible']" hx-swap="innerHTML">
       {{template "dash_loading" "Exams"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/progress" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Ta progression"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/ready" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Prêt à rendre"}}
     </section>
     <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/evals" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Évaluations"}}
@@ -59,6 +68,9 @@
     </section>
     <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/events" hx-trigger="load" hx-swap="innerHTML">
       {{template "dash_loading" "Événements"}}
+    </section>
+    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/lookup" hx-trigger="load" hx-swap="innerHTML">
+      {{template "dash_loading" "Chercher un pisciner"}}
     </section>
   </main>
 </body>
@@ -100,13 +112,16 @@
 {{define "dash_defenses"}}
 <div class="dash-head">
   <h2 class="dash-title">Corrections à venir</h2>
-  <a class="dash-retry" href="/agenda">Gérer mes créneaux</a>
+  <div class="def-actions">
+    <button type="button" id="def-bell" class="dash-retry" title="Notifications de défense (15 min avant + révélation du login)">🔔 Alertes</button>
+    <a class="dash-retry" href="/agenda">Gérer mes créneaux</a>
+  </div>
 </div>
 {{if .Note}}<p class="dash-empty">{{.Note}}</p>{{end}}
 {{if .Rows}}
-<ul class="def-list">
+<ul class="def-list" id="def-list">
   {{range .Rows}}
-  <li class="def-row{{if .Soon}} soon{{end}}">
+  <li class="def-row{{if .Soon}} soon{{end}}" data-def-id="{{.ID}}" data-begin="{{.BeginRFC}}" data-who="{{.Who}}" data-project="{{.Project}}">
     <span class="def-dir {{if .Give}}give{{else}}take{{end}}">{{.Direction}}</span>
     <div class="def-body">
       <span class="def-project">{{.Project}}</span>
@@ -410,5 +425,81 @@
 </ul>
 {{else}}
 <p class="dash-empty">Aucun événement à venir dans tes inscriptions.</p>
+{{end}}
+{{end}}
+
+{{define "dash_progress"}}
+<div class="dash-head">
+  <h2 class="dash-title">Ta progression</h2>
+  {{if not .Unavailable}}<span class="dash-badge">{{.Days}} relevés · {{.FirstDate}} → {{.LastDate}}</span>{{end}}
+</div>
+{{if .Unavailable}}
+<p class="dash-empty">{{.Reason}}</p>
+{{else}}
+<div class="prog-cols">
+  <div class="prog-col">
+    <div class="prog-head"><span class="tile-label">Niveau</span><span class="prog-now">{{.LevelNow}}</span></div>
+    <svg class="spark" viewBox="0 0 120 32" preserveAspectRatio="none" role="img" aria-label="Évolution du niveau">
+      <polyline points="{{.LevelSpark}}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
+    </svg>
+  </div>
+  <div class="prog-col">
+    <div class="prog-head"><span class="tile-label">Score coalition</span><span class="prog-now">{{.ScoreNow}}</span></div>
+    <svg class="spark" viewBox="0 0 120 32" preserveAspectRatio="none" role="img" aria-label="Évolution du score">
+      <polyline points="{{.ScoreSpark}}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
+    </svg>
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "dash_ready"}}
+<div class="dash-head"><h2 class="dash-title">Prêt à rendre</h2></div>
+{{if .Rows}}
+<p class="ready-hint">Ces exercices passent ta moulinette mais ne sont pas validés à l'intra :</p>
+<ul class="ready-list">
+  {{range .Rows}}
+  <li class="ready-row {{.StateClass}}">
+    <span class="ready-name">{{.Name}}</span>
+    <span class="ready-score">{{.Score}}/100 à la moulinette</span>
+    <span class="ready-state">{{.State}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="dash-empty">{{.Note}}</p>
+{{end}}
+{{end}}
+
+{{define "dash_lookup"}}
+<div class="dash-head"><h2 class="dash-title">Chercher un pisciner</h2></div>
+<form class="lookup-form" hx-get="/ui/user" hx-target="#lookup-result" hx-swap="innerHTML" hx-indicator="#lookup-spin">
+  <input type="text" name="login" class="git-input lookup-input" placeholder="login intra (ex. kyfontan)" autocomplete="off" required>
+  <button type="submit" class="dash-retry">Chercher</button>
+  <span id="lookup-spin" class="htmx-indicator spinner"></span>
+</form>
+<div id="lookup-result"></div>
+{{end}}
+
+{{define "user_card"}}
+{{if .Err}}
+<p class="dash-empty">{{.Err}}</p>
+{{else}}
+<div class="hero-wrap lookup-card">
+  {{if .Avatar}}<img class="hero-avatar" src="{{.Avatar}}" alt="" width="92" height="92" loading="lazy">{{end}}
+  <div class="hero-id">
+    <h3 class="hero-name">{{.Displayname}}</h3>
+    <p class="hero-login">{{.Login}}{{if .Title}} · <span class="hero-title">{{.Title}}</span>{{end}}</p>
+    <div class="hero-badges">
+      {{if .PoolBadge}}<span class="dash-badge accent">{{.PoolBadge}}</span>{{end}}
+      <a class="dash-badge" href="{{.IntraURL}}" target="_blank" rel="noopener">profil intra ↗</a>
+    </div>
+  </div>
+  <div class="hero-tiles">
+    <div class="dash-tile"><span class="tile-label">Niveau{{if .CursusName}} — {{.CursusName}}{{end}}</span><span class="tile-value">{{.Level}}</span></div>
+    <div class="dash-tile"><span class="tile-label">Projets validés</span><span class="tile-value">{{.Validated}}</span></div>
+    <div class="dash-tile"><span class="tile-label">Points de correction</span><span class="tile-value">{{.CorrectionPoint}}</span></div>
+  </div>
+</div>
 {{end}}
 {{end}}
