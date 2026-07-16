@@ -37,7 +37,7 @@ func TestAgendaPage(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(body, `id="agenda-root"`) || !strings.Contains(body, `hx-get="/ui/slots"`) {
 		t.Fatalf("page agenda : code=%d, coquille attendue", rec.Code)
 	}
-	if !strings.Contains(body, "/static/agenda.js") {
+	if !strings.Contains(body, "/static/js/agenda.js") {
 		t.Errorf("page agenda : script du glisser-déposer absent")
 	}
 }

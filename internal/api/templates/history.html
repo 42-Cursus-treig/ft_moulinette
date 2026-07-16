@@ -7,6 +7,7 @@
 <title>ft_moulinette - historique</title>
 <script src="/static/js/theme.js"></script>
 <link rel="stylesheet" href="/static/css/common.css">
+<link rel="stylesheet" href="/static/css/history.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
 <script src="/static/js/app.js" defer></script>
 </head>
@@ -70,9 +71,9 @@
     {{end}}
 
     {{if .HasNext}}
-    <button class="page-btn" hx-get="/history?page={{.NextPage}}" hx-target="#history-root" hx-swap="innerHTML" hx-push-url="true" aria-label="Page suivante">›</button>
+    <button class="page-btn" hx-get="/history?page={{.NextPage}}" hx-target="#history-root" hx-swap="innerHTML" hx-push-url="true" aria-label="Page suivante">></button>
     {{else}}
-    <button class="page-btn" disabled aria-hidden="true">›</button>
+    <button class="page-btn" disabled aria-hidden="true">></button>
     {{end}}
   </nav>
   <p class="pagination-info">Page {{.CurrentPage}} / {{.TotalPages}} — {{.TotalJobs}} correction{{if gt .TotalJobs 1}}s{{end}}</p>
