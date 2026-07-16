@@ -111,7 +111,6 @@ h1 {
   box-shadow: 3px 3px 0px var(--border);
   text-transform: lowercase;
 }
-/* Le badge de login est aussi la porte d'entrée du dashboard. */
 a.user-badge {
   color: var(--text);
   text-decoration: none;
@@ -494,7 +493,6 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
 .job-row.passed .score-badge { border-color: var(--pass); color: var(--pass); }
 .job-row.failed .score-badge, .job-row.error .score-badge { border-color: var(--fail); color: var(--fail); }
 
-/* --- Page Classement --- */
 .ranking-controls {
   display: flex;
   flex-direction: column;
@@ -569,8 +567,6 @@ button:disabled { background: #4b5563; cursor: not-allowed; box-shadow: none; tr
 }
 .exam-sched-item { white-space: nowrap; }
 
-/* États : rouge (à venir), vert (en cours), neutre (terminé). Le liseré
-   (box-shadow de brutal-card) prend la couleur de l'état. */
 .exam-cd-box.state-upcoming { box-shadow: 5px 5px 0px var(--fail); }
 .exam-cd-box.state-upcoming .exam-cd-timer { color: var(--fail); }
 .exam-cd-box.state-active { box-shadow: 5px 5px 0px var(--pass); }
@@ -802,21 +798,17 @@ pre {
   word-break: break-word;
 }
 
-/* Conteneur de tableau : défilement horizontal sur petit écran plutôt que
-   d'écraser les colonnes. */
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* --- Responsive : agencement téléphone --- */
 @media (max-width: 640px) {
   body {
     padding: 1.2rem 0.9rem 3rem;
     line-height: 1.35;
   }
 
-  /* Header empilé : titre au-dessus, actions en dessous. */
   header {
     flex-direction: column;
     align-items: flex-start;
@@ -831,7 +823,6 @@ pre {
 
   form { margin-bottom: 2rem; }
 
-  /* Grille d'exercices : 2 par ligne. */
   .exercise-btn {
     flex: 0 0 calc((100% - 0.7rem) / 2);
     padding: 0.6rem 0.4rem;
@@ -845,7 +836,6 @@ pre {
   .form-row { flex-direction: column; }
   .form-row button { width: 100%; justify-content: center; }
 
-  /* Lignes de jobs : libellé au-dessus, statut en dessous. */
   .job-row { padding: 1rem; }
   .meta {
     flex-direction: column;
@@ -859,12 +849,10 @@ pre {
   .tests li { font-size: 0.8rem; }
   pre { padding: 0.8rem; font-size: 0.75rem; }
 
-  /* Administration : bouton sous le libellé. */
   .admin-row { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
   .admin-new-form { flex-direction: column; }
   .admin-new-form input[type="text"], .admin-new-form button { width: 100%; }
 
-  /* Classement : onglets en grille 2×2, tableaux défilables. */
   .rank-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -885,7 +873,6 @@ pre {
 
   .coal-pills, .exam-picker { gap: 0.4rem; }
 
-  /* Graphes : carte moins large, légende compacte. */
   .chart-card { padding: 0.8rem; margin-bottom: 1rem; }
   .chart-title { font-size: 0.78rem; }
   .chart-legend { gap: 0.4rem; }
@@ -894,7 +881,6 @@ pre {
   .chart-note { font-size: 0.75rem; }
 }
 
-/* --- Page de connexion --- */
 .login-body {
   min-height: 100vh;
   max-width: none;
@@ -981,8 +967,6 @@ pre {
   box-shadow: 5px 5px 0px var(--border);
 }
 .login-cta .spinner { border-color: #ffffff; border-top-color: transparent; }
-/* La règle .spinner { display: inline-block } gagne sinon sur le style
-   navigateur de [hidden] : le spinner resterait visible en permanence. */
 .login-cta .spinner[hidden] { display: none; }
 .login-cta svg[hidden] { display: none; }
 
@@ -997,10 +981,6 @@ pre {
   .login-title { font-size: 1.7rem; }
 }
 
-/* --- Dashboard --- */
-
-/* La page a besoin de place pour sa grille : plus large que les 780px des
-   pages de correction, mais on garde le même gabarit centré. */
 .dash-body { max-width: 1180px; }
 
 .dash-grid {
@@ -1049,7 +1029,6 @@ pre {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Squelette affiché en attendant la réponse de l'API 42. */
 .dash-skeleton { display: flex; flex-direction: column; gap: 0.65rem; }
 .skel-line {
   height: 14px;
@@ -1062,7 +1041,6 @@ pre {
 .skel-line.w90 { width: 90%; }
 @keyframes skel-pulse { from { opacity: 0.12; } to { opacity: 0.4; } }
 
-/* État d'erreur d'une carte (panne 42, session expirée…). */
 .dash-error { display: flex; flex-direction: column; align-items: flex-start; gap: 0.7rem; }
 .dash-error svg { color: var(--fail); flex: none; }
 .dash-error p { margin: 0; font-size: 0.92rem; }
@@ -1121,7 +1099,6 @@ pre {
   line-height: 1.1;
 }
 
-/* Carte héro : avatar + identité + tuiles de stats. */
 .hero-wrap { display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap; }
 .hero-avatar {
   width: 92px;
@@ -1147,7 +1124,6 @@ pre {
 .level-bar { height: 10px; border: 2px solid var(--border); background: var(--surface); }
 .level-fill { height: 100%; background: var(--accent); }
 
-/* Carte temps de présence : heatmap façon graphe de contributions. */
 .lt-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
@@ -1191,7 +1167,6 @@ pre {
 .hm-legend span:first-child { margin-right: 4px; }
 .hm-legend span:last-child { margin-left: 4px; }
 
-/* Carte coalition. */
 .coa-wrap { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.1rem; }
 .coa-swatch {
   width: 34px;
@@ -1203,7 +1178,6 @@ pre {
 .coa-name { font-size: 1.35rem; font-weight: 700; }
 .coa-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.8rem; }
 
-/* Carte projets : donut + liste. */
 .proj-summary { display: flex; align-items: center; gap: 1.3rem; margin-bottom: 1.1rem; }
 .donut { width: 88px; height: 88px; flex: none; }
 .donut-ring { stroke: var(--border); opacity: 0.2; }
@@ -1262,7 +1236,6 @@ pre {
 .proj-row.ok .proj-mark { color: var(--pass); }
 .proj-row.ko .proj-mark { color: var(--fail); }
 
-/* Carte compétences. */
 .skill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.8rem; }
 .skill-row { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.6rem; align-items: baseline; }
 .skill-name { font-weight: 700; font-size: 0.92rem; }
@@ -1270,7 +1243,6 @@ pre {
 .skill-bar { grid-column: 1 / -1; height: 12px; border: 2px solid var(--border); background: var(--bg); }
 .skill-fill { height: 100%; background: var(--accent); }
 
-/* Carte évaluations : reçues / données. */
 .evals-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
 .evals-subtitle {
   margin: 0 0 0.6rem;
@@ -1307,7 +1279,6 @@ pre {
 .eval-flag.neg { color: var(--fail); border-color: var(--fail); }
 .eval-comment { margin: 0.45rem 0 0; font-size: 0.82rem; font-style: italic; color: var(--text-muted); }
 
-/* Carte points de correction. */
 .points-current {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 700;
@@ -1330,7 +1301,6 @@ pre {
 .points-reason { flex: 1; min-width: 0; }
 .points-date { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-muted); }
 
-/* Carte succès. */
 .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.6rem; }
 .ach-chip {
   border: 2px solid var(--border);
@@ -1350,7 +1320,6 @@ pre {
   color: var(--text-muted);
 }
 
-/* Carte classement promo. */
 .dash-link {
   display: inline-block;
   margin-top: 1rem;
@@ -1374,7 +1343,6 @@ pre {
 .promo-medal { flex: none; }
 .promo-login { flex: 1; min-width: 0; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.88rem; }
 
-/* Carte exams. */
 .exam-focus {
   display: flex;
   flex-direction: column;
@@ -1402,10 +1370,8 @@ pre {
 .exam-windows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 .exam-windows li { display: flex; justify-content: space-between; gap: 0.7rem; align-items: baseline; }
 
-/* Erreurs « définitives » (scope, session) : cadenas sobre, pas d'alarme. */
 .dash-error.scope svg, .dash-error.auth svg { color: var(--text-muted); }
 
-/* Carte corrections à venir. */
 .def-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .def-row {
   display: flex;
@@ -1445,7 +1411,6 @@ pre {
 }
 .def-row.soon .def-count { color: var(--accent); }
 
-/* Agenda des créneaux. */
 .agenda-card { min-height: 300px; }
 .ag-nav { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .ag-week {
@@ -1484,7 +1449,7 @@ pre {
 .ag-gutter { display: flex; flex-direction: column; }
 .ag-gutter-head { height: 34px; }
 .ag-gutter span {
-  height: 44px; /* 4 cases de 15 min × 11px, aligné sur data-px15 */
+  height: 44px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.66rem;
   color: var(--text-muted);
@@ -1507,14 +1472,13 @@ pre {
 .ag-col {
   position: relative;
   border-left: 2px solid color-mix(in srgb, var(--border) 25%, transparent);
-  /* Lignes d'heure peintes en dégradé : une par heure (44px). */
   background-image: repeating-linear-gradient(
     to bottom,
     color-mix(in srgb, var(--border) 18%, transparent) 0 1px,
     transparent 1px 44px
   );
   cursor: crosshair;
-  touch-action: none; /* le drag tactile prime sur le scroll dans la grille */
+  touch-action: none;
 }
 .ag-daywrap:last-child .ag-col { border-right: 2px solid color-mix(in srgb, var(--border) 25%, transparent); }
 .ag-col.today { background-color: color-mix(in srgb, var(--accent) 5%, transparent); }
@@ -1558,8 +1522,6 @@ a.ag-who { text-decoration: underline; }
   position: absolute;
   top: 1px;
   right: 1px;
-  /* appearance:none tue le fond natif blanc que macOS/Safari peint sur les
-     <button>, même avec background transparent. */
   appearance: none;
   -webkit-appearance: none;
   background: transparent;
@@ -1575,14 +1537,13 @@ a.ag-who { text-decoration: underline; }
 }
 .ag-del:hover { background: var(--fail); color: #fff; }
 
-/* Zones révolues : hachures grisées, aucune pose possible. */
 .ag-col.past { cursor: not-allowed; }
 .ag-past {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  z-index: 0; /* sous les blocs (z-index:1), au-dessus du fond de colonne */
+  z-index: 0;
   pointer-events: none;
   background-color: color-mix(in srgb, var(--bg) 55%, transparent);
   background-image: repeating-linear-gradient(
@@ -1610,7 +1571,6 @@ a.ag-who { text-decoration: underline; }
   background: var(--fail);
 }
 
-/* Carte événements. */
 .event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .event-row {
   display: flex;

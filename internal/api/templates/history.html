@@ -5,16 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ft_moulinette - historique</title>
-<script>
-  (function () {
-    var stored = localStorage.getItem('ft-moulinette-theme');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-  })();
-</script>
-<link rel="stylesheet" href="/static/style.css">
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/css/common.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
-<script src="/static/app.js" defer></script>
+<script src="/static/js/app.js" defer></script>
 </head>
 <body>
   <header>
@@ -43,6 +37,14 @@
 
   <div id="error-banner"></div>
 
+  <div id="history-root">
+    {{template "history_content" .}}
+  </div>
+</body>
+</html>
+{{end}}
+
+{{define "history_content"}}
   <div id="jobs-list">
     {{if not .Jobs}}
     <p class="empty-state">Aucun test n'a encore été lancé. Les corrections que vous soumettez apparaîtront ici.</p>
@@ -50,6 +52,29 @@
     {{range .Jobs}}{{template "job_row" .}}{{end}}
     {{end}}
   </div>
-</body>
-</html>
+
+  {{if gt .TotalPages 1}}
+  <nav class="pagination" aria-label="Pagination de l'historique">
+    {{if .HasPrev}}
+    <button class="page-btn" hx-get="/history?page={{.PrevPage}}" hx-target="#history-root" hx-swap="innerHTML" hx-push-url="true" aria-label="Page précédente">‹</button>
+    {{else}}
+    <button class="page-btn" disabled aria-hidden="true">‹</button>
+    {{end}}
+
+    {{range .PageNums}}
+    {{if eq . $.CurrentPage}}
+    <button class="page-btn active" aria-current="page">{{.}}</button>
+    {{else}}
+    <button class="page-btn" hx-get="/history?page={{.}}" hx-target="#history-root" hx-swap="innerHTML" hx-push-url="true">{{.}}</button>
+    {{end}}
+    {{end}}
+
+    {{if .HasNext}}
+    <button class="page-btn" hx-get="/history?page={{.NextPage}}" hx-target="#history-root" hx-swap="innerHTML" hx-push-url="true" aria-label="Page suivante">›</button>
+    {{else}}
+    <button class="page-btn" disabled aria-hidden="true">›</button>
+    {{end}}
+  </nav>
+  <p class="pagination-info">Page {{.CurrentPage}} / {{.TotalPages}} — {{.TotalJobs}} correction{{if gt .TotalJobs 1}}s{{end}}</p>
+  {{end}}
 {{end}}

@@ -5,17 +5,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ft_moulinette - Connexion</title>
-<script>
-  (function () {
-    var stored = localStorage.getItem('ft-moulinette-theme');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-  })();
-</script>
+<script src="/static/js/theme.js"></script>
 <link rel="preconnect" href="https://api.intra.42.fr">
-<link rel="stylesheet" href="/static/style.css">
-<script src="/static/app.js" defer></script>
-<script src="/static/particles.js" defer></script>
+<link rel="stylesheet" href="/static/css/common.css">
+<link rel="stylesheet" href="/static/css/login.css">
+<script src="/static/js/particles.js" defer></script>
+  <script src="/static/js/login.js"></script>
 </head>
 <body class="login-body">
   <canvas id="particles-canvas" aria-hidden="true"></canvas>
@@ -42,34 +37,6 @@
 
     <p class="login-hint">Connexion via ton compte intra 42 (OAuth). Aucun mot de passe n'est stocké ici.</p>
   </main>
-
-  <script>
-    // L'intra 42 peut mettre plusieurs secondes à répondre : sans retour
-    // visuel immédiat, le bouton semble mort. On bascule en "Connexion…"
-    // dès le clic, et on restaure si l'utilisateur revient en arrière
-    // (bfcache : la page réapparaît dans l'état où elle a été quittée).
-    (function () {
-      var cta = document.getElementById('login-cta');
-      var label = document.getElementById('login-cta-label');
-      var arrow = document.getElementById('login-cta-arrow');
-      var spinner = document.getElementById('login-cta-spinner');
-      var defaultLabel = label.textContent;
-
-      cta.addEventListener('click', function () {
-        cta.classList.add('loading');
-        label.textContent = 'Connexion à 42…';
-        arrow.setAttribute('hidden', '');
-        spinner.hidden = false;
-      });
-
-      window.addEventListener('pageshow', function () {
-        cta.classList.remove('loading');
-        label.textContent = defaultLabel;
-        arrow.removeAttribute('hidden');
-        spinner.hidden = true;
-      });
-    })();
-  </script>
 </body>
 </html>
 {{end}}
