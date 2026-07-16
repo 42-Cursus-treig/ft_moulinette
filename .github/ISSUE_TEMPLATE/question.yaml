@@ -1,0 +1,30 @@
+name: Question
+description: Obtenir de l'aide ou des précisions sur le projet
+title: "[Question] "
+labels:
+  - question
+
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Votre question
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Contexte
+      description: Expliquez ce que vous essayez de faire.
+
+  - type: dropdown
+    id: categorie
+    attributes:
+      label: Catégorie
+      options:
+        - Installation
+        - Configuration
+        - Utilisation
+        - API
+        - Autre
