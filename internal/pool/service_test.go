@@ -30,6 +30,47 @@ func TestNightTTLAt(t *testing.T) {
 	}
 }
 
+func TestInvalidateExam(t *testing.T) {
+	s := &Service{sessions: make(map[string]*session)}
+
+	// Amorce une entrée de cache « fraîche » pour l'exam 01.
+	sess := s.sessionLocked("july", "2026")
+	sess.exams["01"] = &entry[[]ExamRow]{
+		data:  []ExamRow{{Login: "alice", Registered: true}},
+		has:   true,
+		at:    time.Now(),
+		err:   errPlaceholder,
+		errAt: time.Now(),
+	}
+
+	// Clé d'exam inconnue : no-op, ne doit pas paniquer.
+	s.InvalidateExam("july", "2026", "99")
+	if !sess.exams["01"].has {
+		t.Fatal("une clé inconnue ne doit pas toucher au cache d'un autre exam")
+	}
+
+	// Exam jamais chargé : no-op silencieux.
+	s.InvalidateExam("july", "2026", "final")
+
+	s.InvalidateExam("july", "2026", "01")
+	e := sess.exams["01"]
+	if e.has {
+		t.Error("après invalidation, l'entrée doit être marquée périmée (has=false)")
+	}
+	if !e.at.IsZero() {
+		t.Error("après invalidation, at doit être remis à zéro pour forcer le stale")
+	}
+	if e.err != nil || !e.errAt.IsZero() {
+		t.Error("après invalidation, l'erreur en cache doit être purgée (retry immédiat)")
+	}
+}
+
+var errPlaceholder = errPlaceholderType("erreur en cache")
+
+type errPlaceholderType string
+
+func (e errPlaceholderType) Error() string { return string(e) }
+
 func TestBetterWindow(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	mk := func(beginOffset, endOffset time.Duration) examWindow {

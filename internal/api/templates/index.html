@@ -17,6 +17,8 @@
     {{template "header_actions" .}}
   </header>
 
+  {{template "exam_banner" .}}
+
   <div id="error-banner"></div>
 
   <form hx-post="/ui/jobs" hx-target="#jobs-list" hx-swap="afterbegin" hx-encoding="multipart/form-data" hx-indicator="#submit-indicator">

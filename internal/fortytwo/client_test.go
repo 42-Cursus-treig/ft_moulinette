@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -102,19 +103,107 @@ func TestDisjoncteur(t *testing.T) {
 
 	c := newTestClient(srv.URL)
 	var out any
-	for _, p := range []string{"/v2/a", "/v2/b"} {
+	for _, p := range []string{"/v2/a", "/v2/b", "/v2/c"} { // seuil = 3
 		if err := c.get(context.Background(), "alice", "tok", p, nil, time.Minute, &out); err == nil {
 			t.Fatalf("succès inattendu sur %s", p)
 		}
 	}
-	before := hits.Load() // 2 ressources × 2 tentatives
-	err := c.get(context.Background(), "alice", "tok", "/v2/c", nil, time.Minute, &out)
+	before := hits.Load()
+	err := c.get(context.Background(), "alice", "tok", "/v2/d", nil, time.Minute, &out)
 	if !errors.Is(err, ErrDown) {
 		t.Fatalf("erreur %v, attendu ErrDown (disjoncteur ouvert)", err)
 	}
 	if hits.Load() != before {
 		t.Errorf("le disjoncteur ouvert a quand même émis %d appel(s)", hits.Load()-before)
 	}
+}
+
+// TestMutationContourneDisjoncteur : une mutation (action utilisateur) passe
+// même quand le disjoncteur est ouvert par des lectures en échec, et le
+// referme en cas de succès.
+func TestMutationContourneDisjoncteur(t *testing.T) {
+	var getHits, postHits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			postHits.Add(1)
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`[{"id": 1}]`))
+			return
+		}
+		getHits.Add(1)
+		w.Header().Set("Retry-After", "0.01")
+		http.Error(w, "521", http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	c := newTestClient(srv.URL)
+
+	// Trois lectures en échec (seuil=3) ouvrent le disjoncteur.
+	var out any
+	for _, p := range []string{"/v2/a", "/v2/b", "/v2/c"} {
+		c.get(context.Background(), "alice", "tok", p, nil, time.Minute, &out)
+	}
+	before := getHits.Load()
+	if err := c.get(context.Background(), "alice", "tok", "/v2/y", nil, time.Minute, &out); !errors.Is(err, ErrDown) {
+		t.Fatalf("lecture après ouverture : %v, attendu ErrDown", err)
+	}
+	if getHits.Load() != before {
+		t.Errorf("la lecture aurait dû être court-circuitée sans toucher le serveur")
+	}
+
+	// La mutation passe malgré le disjoncteur ouvert et l'atteint réellement.
+	if _, err := c.mutate(context.Background(), "alice", "tok", http.MethodPost, "/v2/slots", nil); err != nil {
+		t.Fatalf("mutation : %v (elle devrait contourner le disjoncteur)", err)
+	}
+	if postHits.Load() != 1 {
+		t.Errorf("la mutation n'a pas atteint le serveur")
+	}
+	// Le succès de la mutation a refermé le disjoncteur : la lecture retente et
+	// atteint le serveur (l'appel en échec le frappe même deux fois : 1 retry).
+	hit := getHits.Load()
+	c.get(context.Background(), "alice", "tok", "/v2/z", nil, time.Minute, &out)
+	if getHits.Load() <= hit {
+		t.Errorf("le disjoncteur n'a pas été refermé par la mutation réussie")
+	}
+}
+
+// TestStaleWhileRevalidate : une donnée expirée est servie immédiatement
+// (F5 instantané) pendant qu'un rafraîchissement part en arrière-plan.
+func TestStaleWhileRevalidate(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"n": %d}`, hits.Add(1))
+	}))
+	defer srv.Close()
+	c := newTestClient(srv.URL)
+
+	var out struct{ N int }
+	// TTL nul : l'entrée expire immédiatement — parfait pour le test.
+	if err := c.get(context.Background(), "alice", "tok", "/v2/me", nil, 0, &out); err != nil || out.N != 1 {
+		t.Fatalf("premier appel : n=%d err=%v", out.N, err)
+	}
+
+	// Deuxième lecture : la donnée périmée (n=1) est servie SANS attendre,
+	// et un rafraîchissement part derrière.
+	if err := c.get(context.Background(), "alice", "tok", "/v2/me", nil, time.Minute, &out); err != nil || out.N != 1 {
+		t.Fatalf("lecture périmée : n=%d err=%v, attendu l'ancienne valeur 1", out.N, err)
+	}
+
+	// Le rafraîchissement d'arrière-plan finit par passer (n=2 au cache).
+	deadline := time.Now().Add(2 * time.Second)
+	for hits.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("%d appels réseau, le rafraîchissement d'arrière-plan n'est pas parti", hits.Load())
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := c.get(context.Background(), "alice", "tok", "/v2/me", nil, time.Minute, &out); err == nil && out.N == 2 {
+			return // la valeur fraîche a remplacé la périmée
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("la valeur rafraîchie n'est jamais apparue (n=%d)", out.N)
 }
 
 // TestScaleUserTolereInvisible : l'API renvoie parfois la chaîne "invisible"

@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/static/css/dashboard.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
 <script src="/static/js/app.js" defer></script>
-  <script src="/static/js/exam_countdown.js" defer></script>
+<script src="/static/js/dashboard.js" defer></script>
 </head>
 <body class="dash-body">
   <header>
@@ -19,44 +19,60 @@
     {{template "header_actions" .}}
   </header>
 
+  {{template "exam_banner" .}}
+
+  <div class="dash-tools">
+    <button type="button" id="dash-edit" class="dash-retry">⚙ Personnaliser le dashboard</button>
+  </div>
+
   <main class="dash-grid">
-    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/hero" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Profil"}}
+    {{range .Widgets}}
+    <section class="brutal-card dash-card dash-span-{{.Span}}" hx-get="/ui/dashboard/{{.ID}}" hx-trigger="{{.Trigger}}" hx-swap="innerHTML">
+      {{template "dash_loading" .Title}}
     </section>
-    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/defenses" hx-trigger="load, every 60s" hx-swap="innerHTML">
-      {{template "dash_loading" "Corrections à venir"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/logtime" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Temps de présence"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/coalition" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Coalition"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/projects" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Projets"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/skills" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Compétences"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/promo" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Classement promo"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/exam" hx-trigger="load, every 180s" hx-swap="innerHTML">
-      {{template "dash_loading" "Exams"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/evals" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Évaluations"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/points" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Points de correction"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/achievements" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Succès"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/events" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Événements"}}
-    </section>
+    {{end}}
   </main>
+
+  <div id="dash-editor" class="dash-editor" hidden>
+    <div class="dash-editor-box brutal-card">
+      <div class="dash-head">
+        <h2 class="dash-title">Personnaliser le dashboard</h2>
+        <button type="button" id="dash-editor-close" class="dash-retry" aria-label="Fermer">✕</button>
+      </div>
+      <p class="ag-hint">
+        Glisse un widget de l'<strong>inventaire</strong> vers l'aperçu pour l'afficher (et inversement pour le ranger) ·
+        déplace les cartes dans l'aperçu pour réordonner · attrape le <strong>bord droit</strong> d'une carte pour la
+        redimensionner : Petite ⅓ · Moyenne ½ · Grande pleine largeur.
+      </p>
+      <div class="dash-editor-panes">
+        <aside class="dash-pane" data-pane="reserve">
+          <h3 class="evals-subtitle">Inventaire (masqués)</h3>
+          <ul class="widget-list" id="pane-reserve">
+            {{range .Reserve}}
+            <li class="widget-mini" data-id="{{.ID}}" data-span="{{.Span}}"><span class="widget-name">{{.Title}}</span></li>
+            {{end}}
+          </ul>
+        </aside>
+        <div class="dash-pane preview-pane" data-pane="active">
+          <h3 class="evals-subtitle">Ton dashboard (aperçu)</h3>
+          <div class="dash-preview" id="pane-active">
+            {{range .Widgets}}
+            <div class="widget-mini placed span-{{.Span}}" data-id="{{.ID}}" data-span="{{.Span}}">
+              <span class="widget-name">{{.Title}}</span>
+              <span class="widget-size-label"></span>
+              <span class="widget-resize" title="Redimensionner"></span>
+            </div>
+            {{end}}
+          </div>
+        </div>
+      </div>
+      <div class="dash-editor-actions">
+        <button type="button" id="dash-layout-save" class="dash-retry save">Enregistrer</button>
+        <button type="button" id="dash-layout-reset" class="dash-retry">Réinitialiser</button>
+        <span id="dash-layout-msg" class="ag-total" role="status"></span>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
 {{end}}
@@ -69,6 +85,9 @@
   <div class="skel-line w75"></div>
 </div>
 {{end}}
+
+
+
 
 {{define "dash_error"}}
 <div class="dash-error {{.Kind}}">
@@ -96,13 +115,16 @@
 {{define "dash_defenses"}}
 <div class="dash-head">
   <h2 class="dash-title">Corrections à venir</h2>
-  <a class="dash-retry" href="/agenda">Gérer mes créneaux</a>
+  <div class="def-actions">
+    <button type="button" id="def-bell" class="dash-retry" title="Notifications de défense (15 min avant + révélation du login)">🔔 Alertes</button>
+    <a class="dash-retry" href="/agenda">Gérer mes créneaux</a>
+  </div>
 </div>
 {{if .Note}}<p class="dash-empty">{{.Note}}</p>{{end}}
 {{if .Rows}}
-<ul class="def-list">
+<ul class="def-list" id="def-list">
   {{range .Rows}}
-  <li class="def-row{{if .Soon}} soon{{end}}">
+  <li class="def-row{{if .Soon}} soon{{end}}" data-def-id="{{.ID}}" data-begin="{{.BeginRFC}}" data-who="{{.Who}}" data-project="{{.Project}}">
     <span class="def-dir {{if .Give}}give{{else}}take{{end}}">{{.Direction}}</span>
     <div class="def-body">
       <span class="def-project">{{.Project}}</span>
@@ -313,55 +335,47 @@
 {{end}}
 {{end}}
 
-{{define "dash_promo"}}
+{{define "dash_top5"}}
 <div class="dash-head">
-  <h2 class="dash-title">Classement promo</h2>
-  {{if .Coalition}}<span class="dash-badge">{{.Coalition}}</span>{{end}}
+  <h2 class="dash-title">Classement coalition</h2>
+  {{if .Coalition}}<span class="dash-badge"><span class="coa-dot" style="background: {{.Color}}"></span>{{.Coalition}}</span>{{end}}
 </div>
-{{if .Unavailable}}
-<p class="dash-empty">{{.Reason}}</p>
-{{else}}
-{{if .InRoster}}
-<div class="coa-tiles">
-  <div class="dash-tile"><span class="tile-label">Rang sur {{.Total}}</span><span class="tile-value">{{.Rank}}</span></div>
-  <div class="dash-tile"><span class="tile-label">Score</span><span class="tile-value">{{.Score}}</span></div>
-  <div class="dash-tile"><span class="tile-label">Niveau</span><span class="tile-value">{{.Level}}</span></div>
-</div>
-{{if .Ahead}}<p class="dash-foot">{{.Ahead}}</p>{{end}}
+{{if .Empty}}
+<p class="dash-empty">Pas encore de coalition : le classement apparaîtra quand tu en auras une.</p>
+{{else if .Note}}
+<p class="dash-empty">{{.Note}}</p>
 {{else}}
 <ul class="promo-podium">
-  {{range .Podium}}
-  <li><span class="promo-medal">{{.Medal}}</span><span class="promo-login">{{.Login}}</span><span class="proj-mark">{{.Score}}</span></li>
+  {{range .Rows}}
+  <li{{if .Me}} class="me"{{end}}>
+    <span class="top5-rank">{{.Rank}}</span>
+    {{if .WhoURL}}<a class="promo-login" href="{{.WhoURL}}" target="_blank" rel="noopener">{{.Login}}{{if .Me}} (toi){{end}}</a>{{else}}<span class="promo-login">{{.Login}}</span>{{end}}
+    <span class="proj-mark">{{.Score}}</span>
+  </li>
   {{end}}
 </ul>
-<p class="dash-foot">Tu n'apparais pas dans le roster de cette session.</p>
-{{end}}
-<a class="dash-link" href="/classement">Voir le classement complet →</a>
+{{if .MyRank}}<p class="dash-foot">Toi : {{.MyRank}} de la coalition · {{.MyScore}} pts</p>{{end}}
 {{end}}
 {{end}}
 
 {{define "dash_exam"}}
 <div class="dash-head">
-  <h2 class="dash-title">Exams</h2>
-  {{if .Available}}
-    {{if eq .State "active"}}<span class="dash-badge online">En cours</span>
-    {{else if eq .State "upcoming"}}<span class="dash-badge accent">À venir</span>
-    {{else}}<span class="dash-badge muted">Terminés</span>{{end}}
+  <h2 class="dash-title">Exam</h2>
+  {{if .Registered}}
+    {{if .Active}}<span class="dash-badge online">En cours</span>{{else}}<span class="dash-badge accent">Inscrit ✓</span>{{end}}
   {{end}}
 </div>
-{{if not .Available}}
-<p class="dash-empty">Horaire des exams indisponible pour l'instant.</p>
+{{if not .Registered}}
+<p class="dash-empty">Tu n'es inscrit à aucun exam à venir. L'inscription se fait sur l'intra, comme pour un événement.</p>
 {{else}}
 <div class="exam-focus">
-  <span class="exam-label">{{.Label}}</span>
+  <span class="exam-label">{{.Name}}</span>
   <span class="exam-countdown">{{.Countdown}}</span>
-  <span class="exam-when">{{.Date}} · {{.Hours}}</span>
+  <span class="exam-when">{{.When}}{{if .Location}} · {{.Location}}{{end}}</span>
 </div>
-{{if .Windows}}
+{{if .Others}}
 <ul class="exam-windows">
-  {{range .Windows}}
-  <li><span class="promo-login">{{.Label}}</span><span class="points-date">{{.Date}} · {{.Start}} → {{.End}}</span></li>
-  {{end}}
+  {{range .Others}}<li><span class="points-date">{{.}}</span></li>{{end}}
 </ul>
 {{end}}
 {{end}}
@@ -406,5 +420,81 @@
 </ul>
 {{else}}
 <p class="dash-empty">Aucun événement à venir dans tes inscriptions.</p>
+{{end}}
+{{end}}
+
+{{define "dash_progress"}}
+<div class="dash-head">
+  <h2 class="dash-title">Ta progression</h2>
+  {{if not .Unavailable}}<span class="dash-badge">{{.Days}} relevés · {{.FirstDate}} → {{.LastDate}}</span>{{end}}
+</div>
+{{if .Unavailable}}
+<p class="dash-empty">{{.Reason}}</p>
+{{else}}
+<div class="prog-cols">
+  <div class="prog-col">
+    <div class="prog-head"><span class="tile-label">Niveau</span><span class="prog-now">{{.LevelNow}}</span></div>
+    <svg class="spark" viewBox="0 0 120 32" preserveAspectRatio="none" role="img" aria-label="Évolution du niveau">
+      <polyline points="{{.LevelSpark}}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
+    </svg>
+  </div>
+  <div class="prog-col">
+    <div class="prog-head"><span class="tile-label">Score coalition</span><span class="prog-now">{{.ScoreNow}}</span></div>
+    <svg class="spark" viewBox="0 0 120 32" preserveAspectRatio="none" role="img" aria-label="Évolution du score">
+      <polyline points="{{.ScoreSpark}}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke"></polyline>
+    </svg>
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "dash_ready"}}
+<div class="dash-head"><h2 class="dash-title">Prêt à rendre</h2></div>
+{{if .Rows}}
+<p class="ready-hint">Ces exercices passent ta moulinette mais ne sont pas validés à l'intra :</p>
+<ul class="ready-list">
+  {{range .Rows}}
+  <li class="ready-row {{.StateClass}}">
+    <span class="ready-name">{{.Name}}</span>
+    <span class="ready-score">{{.Score}}/100 à la moulinette</span>
+    <span class="ready-state">{{.State}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="dash-empty">{{.Note}}</p>
+{{end}}
+{{end}}
+
+{{define "dash_lookup"}}
+<div class="dash-head"><h2 class="dash-title">Chercher un student</h2></div>
+<form class="lookup-form" hx-get="/ui/user" hx-target="#lookup-result" hx-swap="innerHTML" hx-indicator="#lookup-spin">
+  <input type="text" name="login" class="git-input lookup-input" placeholder="login intra d'un student (ex. kyfontan)" autocomplete="off" required>
+  <button type="submit" class="dash-retry">Chercher</button>
+  <span id="lookup-spin" class="htmx-indicator spinner"></span>
+</form>
+<div id="lookup-result"></div>
+{{end}}
+
+{{define "user_card"}}
+{{if .Err}}
+<p class="dash-empty">{{.Err}}</p>
+{{else}}
+<div class="hero-wrap lookup-card">
+  {{if .Avatar}}<img class="hero-avatar" src="{{.Avatar}}" alt="" width="92" height="92" loading="lazy">{{end}}
+  <div class="hero-id">
+    <h3 class="hero-name">{{.Displayname}}</h3>
+    <p class="hero-login">{{.Login}}{{if .Title}} · <span class="hero-title">{{.Title}}</span>{{end}}</p>
+    <div class="hero-badges">
+      {{if .PoolBadge}}<span class="dash-badge accent">{{.PoolBadge}}</span>{{end}}
+      <a class="dash-badge" href="{{.IntraURL}}" target="_blank" rel="noopener">profil intra ↗</a>
+    </div>
+  </div>
+  <div class="hero-tiles">
+    <div class="dash-tile"><span class="tile-label">Niveau{{if .CursusName}} — {{.CursusName}}{{end}}</span><span class="tile-value">{{.Level}}</span></div>
+    <div class="dash-tile"><span class="tile-label">Projets validés</span><span class="tile-value">{{.Validated}}</span></div>
+    <div class="dash-tile"><span class="tile-label">Points de correction</span><span class="tile-value">{{.CorrectionPoint}}</span></div>
+  </div>
+</div>
 {{end}}
 {{end}}

@@ -337,6 +337,28 @@ func (s *Service) Exam(month, year, examKey string) ([]ExamRow, Status) {
 	})
 }
 
+// InvalidateExam marque le cache d'un exam comme périmé pour que le prochain
+// accès re-fetche depuis l'API 42. Purge aussi une éventuelle erreur pour
+// court-circuiter le backoff (errRetry) : le bouton « Rafraîchir » doit pouvoir
+// relancer une tentative immédiatement. Sert quand un piscineux vient de
+// s'inscrire à l'exam et n'apparaît pas encore dans la liste en cache.
+func (s *Service) InvalidateExam(month, year, examKey string) {
+	if _, ok := ExamSlugs[examKey]; !ok {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess := s.sessionLocked(month, year)
+	e, ok := sess.exams[examKey]
+	if !ok {
+		return // jamais chargé : le prochain Exam() fetchera de toute façon
+	}
+	e.has = false
+	e.at = time.Time{}
+	e.err = nil
+	e.errAt = time.Time{}
+}
+
 // ExamRefresh renvoie le pas de rafraîchissement recommandé pour l'onglet d'un
 // exam : court (examLiveTTL) quand l'exam est dans sa fenêtre planifiée, long
 // (examIdleTTL) sinon. Le front l'utilise pour son propre rythme de polling,

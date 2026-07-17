@@ -990,9 +990,11 @@ pre {
 }
 .dash-card { padding: 1.3rem 1.4rem; min-height: 110px; min-width: 0; }
 .dash-span-12 { grid-column: span 12; }
+.dash-span-8 { grid-column: span 8; }
 .dash-span-7 { grid-column: span 7; }
 .dash-span-6 { grid-column: span 6; }
 .dash-span-5 { grid-column: span 5; }
+.dash-span-4 { grid-column: span 4; }
 
 .dash-head {
   display: flex;
@@ -1320,6 +1322,119 @@ pre {
   color: var(--text-muted);
 }
 
+/* Barre d'outils du dashboard + éditeur de disposition. */
+.dash-tools { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.dash-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1rem;
+  overflow-y: auto;
+}
+.dash-editor[hidden] { display: none; }
+.dash-editor-box {
+  width: min(1080px, 100%);
+  background: var(--surface);
+  padding: 1.3rem 1.4rem;
+}
+.dash-editor-panes {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 1.2rem;
+  margin: 1rem 0;
+}
+.dash-pane {
+  border: 3px dashed color-mix(in srgb, var(--border) 45%, transparent);
+  padding: 0.7rem;
+  min-height: 260px;
+}
+.dash-pane.preview-pane { border-color: var(--accent); border-style: solid; }
+.widget-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 200px;
+}
+
+/* Aperçu : une mini-grille fidèle au vrai dashboard (12 colonnes). */
+.dash-preview {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  min-height: 220px;
+  align-content: start;
+}
+.widget-mini {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  padding: 0.5rem 0.6rem;
+  min-height: 46px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+.widget-mini.dragging {
+  opacity: 0.85;
+  border-color: var(--accent);
+  box-shadow: 3px 3px 0px var(--accent-shadow);
+  cursor: grabbing;
+}
+.widget-name { flex: 1; min-width: 0; font-weight: 700; font-size: 0.82rem; line-height: 1.15; }
+/* Cartes placées dans l'aperçu : leur largeur reflète la vraie. */
+.widget-mini.span-4 { grid-column: span 4; }
+.widget-mini.span-6 { grid-column: span 6; }
+.widget-mini.span-12 { grid-column: span 12; }
+.widget-size-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  flex: none;
+  margin-right: 8px;
+}
+/* Poignée de redimensionnement : le bord droit, comme une fenêtre. */
+.widget-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: ew-resize;
+  border-left: 2px dashed color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.widget-resize:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.dash-editor-actions { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+
+/* Carte classement coalition (top 5). */
+.coa-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border);
+  margin-right: 0.4rem;
+  vertical-align: -1px;
+}
+.top5-rank { font-family: 'JetBrains Mono', monospace; font-weight: 700; flex: none; min-width: 2.2em; }
+.promo-podium li.me { border-color: var(--accent); box-shadow: 2px 2px 0px var(--accent-shadow); }
+.promo-podium a.promo-login { color: inherit; text-decoration: none; }
+.promo-podium a.promo-login:hover { color: var(--accent); }
+
+/* Carte classement promo. */
 .dash-link {
   display: inline-block;
   margin-top: 1rem;
@@ -1522,21 +1637,81 @@ a.ag-who { text-decoration: underline; }
   position: absolute;
   top: 1px;
   right: 1px;
+  z-index: 4;
+  /* appearance:none tue le fond natif blanc que macOS/Safari peint sur les
+     <button>. L'icône ✕ est en SVG (pas de glyphe → aucun artefact de rendu). */
   appearance: none;
   -webkit-appearance: none;
   background: transparent;
   border: none;
   color: inherit;
-  font-family: inherit;
-  font-weight: 700;
-  font-size: 0.7rem;
-  line-height: 1;
   cursor: pointer;
-  padding: 2px 3px;
+  padding: 2px;
   border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
+.ag-del svg { display: block; }
 .ag-del:hover { background: var(--fail); color: #fff; }
 
+/* Poignées de redimensionnement (bords haut/bas d'un créneau libre). */
+.ag-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 7px;
+  z-index: 3;
+  cursor: ns-resize;
+}
+.ag-handle.top { top: -1px; }
+.ag-handle.bottom { bottom: -1px; }
+
+.ag-block.free { cursor: grab; touch-action: none; }
+.ag-block.dragging { cursor: grabbing; opacity: 0.92; z-index: 6; box-shadow: 3px 3px 0 var(--accent-shadow); }
+/* Pendant la synchro 42 : bloc figé et estompé (aucun geste concurrent). */
+.ag-block.syncing { opacity: 0.5; pointer-events: none; }
+
+/* Message client (chevauchement, résumé d'enregistrement…). */
+.ag-flash {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border: 2px solid var(--fail);
+  color: var(--fail);
+  font-weight: 700;
+  font-size: 0.88rem;
+  background: var(--bg);
+}
+.ag-flash.ok { border-color: var(--pass); color: var(--pass); }
+.ag-flash[hidden] { display: none; }
+
+/* Barre d'enregistrement : visible dès qu'une modification locale existe. */
+.ag-savebar {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.9rem;
+  padding: 0.55rem 0.9rem;
+  border: 3px solid var(--accent);
+  background: var(--surface);
+  box-shadow: 4px 4px 0px var(--accent-shadow);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.ag-savebar[hidden] { display: none; }
+#ag-savecount { flex: 1; min-width: 200px; }
+.ag-savebar .dash-retry.save { background: var(--accent); color: #ffffff; }
+.ag-savebar .dash-retry:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+/* Bloc modifié localement, pas encore poussé chez 42. */
+.ag-block.free[data-pending] { border-style: dashed; }
+
+/* Zones révolues : hachures grisées, aucune pose possible. */
 .ag-col.past { cursor: not-allowed; }
 .ag-past {
   position: absolute;
@@ -1571,6 +1746,78 @@ a.ag-who { text-decoration: underline; }
   background: var(--fail);
 }
 
+/* Bannière exam (toutes pages) : visible seulement à l'approche d'un exam. */
+.exam-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: -1.5rem 0 1.5rem;
+  padding: 0.6rem 1rem;
+  border: 3px solid var(--accent);
+  background: var(--surface);
+  box-shadow: 4px 4px 0px var(--accent-shadow);
+  font-weight: 700;
+}
+.exam-banner.active { border-color: var(--fail); box-shadow: 4px 4px 0px var(--fail); animation: def-pulse 1.6s ease-in-out infinite; }
+.exam-banner-label {
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 0.15rem 0.5rem;
+}
+.exam-banner.active .exam-banner-label { background: var(--fail); }
+.exam-banner-link { margin-left: auto; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+
+/* Stats moulinette (admin). */
+.stats-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.stats-table th, .stats-table td { border: 2px solid var(--border); padding: 0.45rem 0.7rem; text-align: left; }
+.stats-table th { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; font-size: 0.72rem; background: var(--bg); }
+.stats-ex { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.stats-bar { display: inline-block; width: 90px; height: 10px; border: 2px solid var(--border); background: var(--bg); vertical-align: middle; margin-right: 0.5rem; }
+.stats-fill { height: 100%; background: var(--pass); }
+.stats-pct { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+/* Carte progression perso. */
+.prog-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.prog-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
+.prog-now { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.15rem; color: var(--accent); }
+@media (max-width: 600px) { .prog-cols { grid-template-columns: 1fr; } }
+
+/* Carte prêt à rendre. */
+.ready-hint { margin: 0 0 0.7rem; font-size: 0.88rem; color: var(--text-muted); }
+.ready-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.ready-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  border: 2px solid var(--border);
+  border-left-width: 6px;
+  background: var(--bg);
+  padding: 0.45rem 0.7rem;
+}
+.ready-row.wip { border-left-color: #eab308; }
+.ready-row.wait { border-left-color: #38bdf8; }
+.ready-row.ko { border-left-color: var(--fail); }
+.ready-name { font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.ready-score { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--pass); font-weight: 700; }
+.ready-state { font-size: 0.82rem; color: var(--text-muted); }
+
+/* Carte recherche de pisciner. */
+.lookup-form { display: flex; gap: 0.7rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+.lookup-input { max-width: 320px; }
+.lookup-card { margin-top: 0.4rem; }
+
+/* Actions de la carte défenses (cloche + lien agenda). */
+.def-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+#def-bell.on { border-color: var(--accent); color: var(--accent); }
+
+/* Total de dispos dans la barre de l'agenda. */
+.ag-total { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); font-weight: 700; }
+
+/* Carte événements. */
 .event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .event-row {
   display: flex;
@@ -1598,8 +1845,9 @@ a.ag-who { text-decoration: underline; }
 
 @media (max-width: 980px) {
   .dash-grid { gap: 1rem; }
-  .dash-span-7, .dash-span-6, .dash-span-5 { grid-column: span 12; }
+  .dash-span-8, .dash-span-7, .dash-span-6, .dash-span-5, .dash-span-4 { grid-column: span 12; }
   .hero-tiles { flex: 1 1 100%; margin-left: 0; }
+  .dash-editor-panes { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .dash-card { padding: 1.1rem 1rem; }

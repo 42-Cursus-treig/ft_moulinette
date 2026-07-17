@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
 	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
+	"github.com/tristan-reig/ft-moulinette/internal/models"
 )
 
 // --- Mock de l'API 42 ---
@@ -79,6 +81,26 @@ func newMock42(t *testing.T) *mock42 {
 	serve("/v2/users/1/events", mockEventsJSON())
 	serve("/v2/me/scale_teams", mockMeScaleTeamsJSON())
 	serve("/v2/projects/1318", `{"id": 1318, "name": "C Piscine Rush 00"}`)
+	serve("/v2/coalitions/377/coalitions_users", `[
+	  {"id": 9001, "coalition_id": 377, "user_id": 1, "score": 512, "rank": 1},
+	  {"id": 9002, "coalition_id": 377, "user_id": 7, "score": 400, "rank": 2}
+	]`)
+	carolJSON := `{
+	  "id": 7, "login": "carol", "displayname": "Carol Danvers",
+	  "correction_point": 3, "wallet": 10, "pool_month": "july", "pool_year": "2026",
+	  "image": {"link": "", "versions": {"medium": ""}},
+	  "cursus_users": [{"grade": null, "level": 5.21, "begin_at": "2026-07-06T07:00:00.000Z",
+	    "cursus": {"id": 9, "name": "C Piscine", "slug": "c-piscine"}, "skills": []}],
+	  "projects_users": [
+	    {"id": 71, "final_mark": 100, "status": "finished", "validated?": true, "cursus_ids": [9],
+	     "created_at": "2026-07-07T08:00:00.000Z", "project": {"name": "C 00", "slug": "c-00"}},
+	    {"id": 72, "final_mark": 25, "status": "finished", "validated?": false, "cursus_ids": [9],
+	     "created_at": "2026-07-08T08:00:00.000Z", "project": {"name": "C 01", "slug": "c-01"}}
+	  ],
+	  "achievements": [], "titles": [], "titles_users": []
+	}`
+	serve("/v2/users/carol", carolJSON)
+	serve("/v2/users/7", carolJSON) // le top 5 lit les profils par id numérique
 	mux.HandleFunc("GET /v2/me/slots", func(w http.ResponseWriter, r *http.Request) {
 		m.slotHits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
@@ -93,7 +115,8 @@ func newMock42(t *testing.T) *mock42 {
 		m.lastSlotBegin.Store(r.Form.Get("slot[begin_at]"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, `[]`)
+		fmt.Fprintf(w, `[{"id": 301, "begin_at": %q, "end_at": %q, "scale_team": null}]`,
+			r.Form.Get("slot[begin_at]"), r.Form.Get("slot[end_at]"))
 	})
 	mux.HandleFunc("DELETE /v2/slots/{id}", func(w http.ResponseWriter, r *http.Request) {
 		m.slotDeletes.Add(1)
@@ -120,10 +143,12 @@ func mockMeScaleTeamsJSON() string {
 		now.Add(17*time.Hour).UTC().Format(time.RFC3339))
 }
 
-// mockSlotsJSON : aujourd'hui, 2 granules libres contiguës (15h00–15h30),
-// une réservation « invisible » (16h00–16h30) et une réservation révélée.
+// mockSlotsJSON : mercredi 6 janvier 2027 (date fixe et future, pour que le
+// filtre des créneaux passés ne les masque jamais et que les libellés soient
+// déterministes) — 2 granules libres contiguës (15h00–15h30), une réservation
+// « invisible » (16h00–16h30) et une réservation révélée (17h00).
 func mockSlotsJSON() string {
-	day := time.Now()
+	day := time.Date(2027, 1, 6, 0, 0, 0, 0, time.Local)
 	at := func(h, m int) string {
 		return time.Date(day.Year(), day.Month(), day.Day(), h, m, 0, 0, time.Local).UTC().Format(time.RFC3339)
 	}
@@ -196,10 +221,13 @@ func mockEventsJSON() string {
 	now := time.Now()
 	return fmt.Sprintf(`[
 	  {"name": "Meetup Piscine", "kind": "meet_up", "location": "Amphi", "begin_at": "%s", "end_at": "%s"},
+	  {"name": "Exam 02", "kind": "exam", "location": "Cluster 1", "begin_at": "%s", "end_at": "%s"},
 	  {"name": "Vieille conf", "kind": "conference", "location": "Zoom", "begin_at": "%s", "end_at": "%s"}
 	]`,
 		now.Add(48*time.Hour).UTC().Format(time.RFC3339),
 		now.Add(50*time.Hour).UTC().Format(time.RFC3339),
+		now.Add(72*time.Hour).UTC().Format(time.RFC3339),
+		now.Add(76*time.Hour).UTC().Format(time.RFC3339),
 		now.Add(-72*time.Hour).UTC().Format(time.RFC3339),
 		now.Add(-70*time.Hour).UTC().Format(time.RFC3339))
 }
@@ -214,20 +242,28 @@ func newDashHandlers(t *testing.T, apiBase string) (*handlers, *http.ServeMux) {
 	}
 	ft := fortytwo.New(apiBase)
 	ft.SetMinInterval(0)
+	layouts, err := newLayoutStore(filepath.Join(t.TempDir(), "layouts.json"))
+	if err != nil {
+		t.Fatalf("store de dispositions : %v", err)
+	}
 	h := &handlers{
 		tmpl:        tmpl,
 		sessions:    auth.NewStore(),
 		oauth:       auth.Config{ClientID: "cid", ClientSecret: "sec", RedirectURL: "http://localhost/auth/callback", BaseURL: apiBase},
 		adminLogins: map[string]bool{},
 		ft:          ft,
+		icsSnap:     newICSStore(),
+		layouts:     layouts,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /dashboard", h.requireAuth(h.dashboardPage))
 	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireAuthFragment(h.dashboardCard))
 	mux.HandleFunc("GET /agenda", h.requireAuth(h.agendaPage))
 	mux.HandleFunc("GET /ui/slots", h.requireAuthFragment(h.slotsCalendar))
-	mux.HandleFunc("POST /ui/slots", h.requireAuthFragment(h.slotsCreate))
-	mux.HandleFunc("POST /ui/slots/delete", h.requireAuthFragment(h.slotsDelete))
+	mux.HandleFunc("POST /ui/slots/sync", h.requireAuthFragment(h.slotsSync))
+	mux.HandleFunc("GET /ui/slots/copy", h.requireAuthFragment(h.slotsCopyWeek))
+	mux.HandleFunc("GET /agenda.ics", h.agendaICS)
+	mux.HandleFunc("GET /ui/user", h.requireAuthFragment(h.userCard))
 	return h, mux
 }
 
@@ -305,12 +341,19 @@ func TestDashboardCards(t *testing.T) {
 		{"evals", []string{"bob", "84", "anonyme", "planifiée", "carol", "Bon boulot"}},
 		{"points", []string{"5 pts", "polyline", "Défense planifiée", "-1"}},
 		{"achievements", []string{"All Star", "Challenge", "3 débloqués"}},
-		{"events", []string{"Meetup Piscine", "Meetup", "Amphi", "2 inscriptions"}},
-		// Sans service pool (tests), les cartes locales dégradent proprement.
-		{"promo", []string{"Service de classement inactif"}},
-		{"exam", []string{"Horaire des exams indisponible"}},
+		{"events", []string{"Meetup Piscine", "Meetup", "Amphi", "3 inscriptions"}},
+		// Top 5 de la coalition : alice (connectée) en tête, carol via son profil.
+		{"top5", []string{"Classement coalition", "Les Gordons", "alice (toi)", "#2",
+			"profile.intra.42.fr/users/carol", "512"}},
+		// Exam : inscription réelle de l'utilisateur, pas l'horaire piscine.
+		{"exam", []string{"Exam 02", "Inscrit ✓", "Cluster 1", "dans"}},
+		// Sans service pool (tests), la progression dégrade proprement.
+		{"progress", []string{"Service de classement inactif"}},
+		// Sans queue (tests), la carte prêt-à-rendre se déclare inactive.
+		{"ready", []string{"Moulinette inactive."}},
+		{"lookup", []string{"Chercher un student", `name="login"`, "/ui/user"}},
 		{"defenses", []string{"C Piscine Rush 00", "Je corrige", "profile.intra.42.fr/users/carol",
-			"révélé ~15 min avant", "On me corrige", "Gérer mes créneaux", "def-row soon"}},
+			"révélé ~15 min avant", "On me corrige", "Gérer mes créneaux", "def-row soon", "data-def-id"}},
 	}
 	for _, tc := range cases {
 		rec := getWithCookie(mux, "/ui/dashboard/"+tc.card, ck)
@@ -634,6 +677,35 @@ func TestBuildHeatmap(t *testing.T) {
 	}
 	if months[0] == "" {
 		t.Errorf("la première colonne doit porter son libellé de mois")
+	}
+}
+
+func TestBuildModStats(t *testing.T) {
+	now := time.Now()
+	res := func(passed bool, score int) *models.Result { return &models.Result{Passed: passed, Score: score} }
+	jobs := []models.Job{
+		{Exercise: "c00", Owner: "alice", Status: models.StatusPassed, Result: res(true, 100), CreatedAt: now},
+		{Exercise: "c00", Owner: "bob", Status: models.StatusFailed, Result: res(false, 20), CreatedAt: now.AddDate(0, 0, -1)},
+		{Exercise: "c00", Owner: "alice", Status: models.StatusPassed, Result: res(true, 80), CreatedAt: now},
+		{Exercise: "c01", Owner: "alice", Status: models.StatusRunning, CreatedAt: now},
+	}
+	rows, total, today := buildModStats(jobs, now)
+	if total != 4 || today != 3 {
+		t.Errorf("total=%d today=%d, attendu 4 et 3", total, today)
+	}
+	if len(rows) != 2 || rows[0].Exercise != "c00" {
+		t.Fatalf("lignes = %+v, attendu c00 en tête", rows)
+	}
+	c00 := rows[0]
+	if c00.Total != 3 || c00.Passed != 2 || c00.Failed != 1 || c00.Users != 2 {
+		t.Errorf("c00 : %+v", c00)
+	}
+	if c00.PassPct != 66 || c00.AvgScore != 66 {
+		t.Errorf("c00 : pct=%d avg=%d, attendu 66/66", c00.PassPct, c00.AvgScore)
+	}
+	// Un job encore en cours compte dans le volume mais pas dans la réussite.
+	if rows[1].Exercise != "c01" || rows[1].PassPct != 0 {
+		t.Errorf("c01 : %+v", rows[1])
 	}
 }
 

@@ -3,9 +3,11 @@ package fortytwo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -99,6 +101,7 @@ type Coalition struct {
 type CoalitionUser struct {
 	ID          int `json:"id"`
 	CoalitionID int `json:"coalition_id"`
+	UserID      int `json:"user_id"`
 	Score       int `json:"score"`
 	Rank        int `json:"rank"`
 }
@@ -263,42 +266,105 @@ func (c *Client) Events(ctx context.Context, login, tok string, userID int) ([]E
 }
 
 // MeScaleTeams liste les évaluations où l'utilisateur est correcteur (le
-// « Pending evaluations » de l'intra). TTL court : l'identité du corrigé se
-// révèle environ 15 minutes avant la défense, la carte doit la voir vite.
+// « Pending evaluations » de l'intra). Le TTL arbitre entre fraîcheur (le
+// corrigé se révèle ~15 min avant la défense) et quota API (1200 req/h pour
+// toute l'app) : 100 s + un polling client à 2 min ≈ 30 req/h par onglet.
 func (c *Client) MeScaleTeams(ctx context.Context, login, tok string) ([]ScaleTeam, error) {
 	params := url.Values{}
 	params.Set("page[size]", "20")
 	var out []ScaleTeam
-	err := c.get(ctx, login, tok, "/v2/me/scale_teams", params, 45*time.Second, &out)
+	err := c.get(ctx, login, tok, "/v2/me/scale_teams", params, 100*time.Second, &out)
 	return out, err
 }
 
 // Slots renvoie les créneaux de l'utilisateur dont le début tombe dans
-// [from, to] - TTL court, l'agenda doit reflèter vite les réservations.
+// [from, to]. TTL 90 s : assez frais pour voir arriver les réservations,
+// assez long pour ménager le quota.
 func (c *Client) Slots(ctx context.Context, login, tok string, from, to time.Time) ([]Slot, error) {
 	params := url.Values{}
 	params.Set("range[begin_at]", from.UTC().Format(time.RFC3339)+","+to.UTC().Format(time.RFC3339))
 	params.Set("page[size]", "100")
 	var out []Slot
-	err := c.get(ctx, login, tok, "/v2/me/slots", params, 30*time.Second, &out)
+	err := c.get(ctx, login, tok, "/v2/me/slots", params, 90*time.Second, &out)
 	return out, err
 }
 
+// CoalitionTop renvoie les meilleurs membres d'une coalition. L'API 42 ne
+// sait pas trier coalitions_users par score (« The score field is not
+// sortable ») : on récupère jusqu'à 3 pages de 100 et on trie nous-mêmes —
+// exact pour des coalitions de campus, et chaque page est en cache 15 min.
+func (c *Client) CoalitionTop(ctx context.Context, login, tok string, coalitionID, count int) ([]CoalitionUser, error) {
+	var all []CoalitionUser
+	for page := 1; page <= 3; page++ {
+		params := url.Values{}
+		params.Set("page[size]", "100")
+		params.Set("page[number]", strconv.Itoa(page))
+		var chunk []CoalitionUser
+		if err := c.get(ctx, login, tok, fmt.Sprintf("/v2/coalitions/%d/coalitions_users", coalitionID), params, 15*time.Minute, &chunk); err != nil {
+			if page == 1 {
+				return nil, err
+			}
+			break // la première page suffit pour un top raisonnable
+		}
+		all = append(all, chunk...)
+		if len(chunk) < 100 {
+			break
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Score > all[j].Score })
+	if len(all) > count {
+		all = all[:count]
+	}
+	return all, nil
+}
+
+// UserProfile renvoie le profil public d'un autre étudiant, par login.
+// L'endpoint /v2/users accepte le login comme identifiant. TTL long : une
+// fiche de pisciner ne bouge pas à la minute et chaque recherche coûte un
+// appel du quota.
+func (c *Client) UserProfile(ctx context.Context, login, tok, target string) (*Me, error) {
+	var me Me
+	err := c.get(ctx, login, tok, "/v2/users/"+url.PathEscape(target), nil, 15*time.Minute, &me)
+	if err != nil {
+		return nil, err
+	}
+	return &me, nil
+}
+
 // CreateSlot poste une disponibilité [begin, end] ; l'intra la découpe en
-// granules de 15 min. Le cache des slots est invalidé pour que le calendrier
-// re-rendu juste après voie le nouveau créneau.
-func (c *Client) CreateSlot(ctx context.Context, login, tok string, userID int, begin, end time.Time) error {
+// granules de 15 min et renvoie les slots créés (leurs ids servent au client
+// pour un futur déplacement/suppression). Le cache des slots est invalidé.
+func (c *Client) CreateSlot(ctx context.Context, login, tok string, userID int, begin, end time.Time) ([]Slot, error) {
 	form := url.Values{}
 	form.Set("slot[user_id]", strconv.Itoa(userID))
 	form.Set("slot[begin_at]", begin.UTC().Format(time.RFC3339))
 	form.Set("slot[end_at]", end.UTC().Format(time.RFC3339))
-	_, err := c.mutate(ctx, login, tok, http.MethodPost, "/v2/slots", form, "/v2/me/slots")
-	return err
+	body, err := c.mutate(ctx, login, tok, http.MethodPost, "/v2/slots", form, "/v2/me/slots")
+	if err != nil {
+		return nil, err
+	}
+	// 42 renvoie un tableau pour une plage, parfois un objet seul pour une
+	// granule unique : on tolère les deux formes.
+	var created []Slot
+	if err := json.Unmarshal(body, &created); err != nil {
+		var one Slot
+		if json.Unmarshal(body, &one) == nil && one.ID != 0 {
+			created = []Slot{one}
+		}
+	}
+	return created, nil
 }
 
 // DeleteSlot supprime un slot (l'API 42 refuse d'elle-même les slots réservés).
+// Un 404 est traité comme un succès : la granule n'existe déjà plus côté 42 —
+// soit l'id était périmé, soit 42 a supprimé des granules sœurs en cascade —
+// et dans les deux cas l'état visé (« ce créneau n'existe plus ») est atteint.
 func (c *Client) DeleteSlot(ctx context.Context, login, tok string, slotID int) error {
 	_, err := c.mutate(ctx, login, tok, http.MethodDelete, fmt.Sprintf("/v2/slots/%d", slotID), nil, "/v2/me/slots")
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+		return nil
+	}
 	return err
 }
 

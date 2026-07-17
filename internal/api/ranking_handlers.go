@@ -125,6 +125,36 @@ func buildExamCountdown(windows []pool.ExamWindowInfo) examCountdownView {
 	return view
 }
 
+// examBannerView alimente la bannière site-wide quand un exam approche.
+type examBannerView struct {
+	Label     string
+	Countdown string
+	Active    bool
+}
+
+// buildExamBanner renvoie la bannière à afficher quand un exam est en cours
+// ou commence dans moins d'une heure — nil sinon (pas de bruit le reste du
+// temps). Données locales du service pool : aucun appel API.
+func buildExamBanner(windows []pool.ExamWindowInfo, now time.Time) *examBannerView {
+	for _, w := range windows {
+		if now.After(w.End) {
+			continue
+		}
+		label := pool.ExamLabels[w.Key]
+		if label == "" {
+			label = "Exam " + w.Key
+		}
+		if !now.Before(w.Begin) {
+			return &examBannerView{Label: label, Countdown: "se termine " + humanUntil(w.End), Active: true}
+		}
+		if w.Begin.Sub(now) <= time.Hour {
+			return &examBannerView{Label: label, Countdown: "commence " + humanUntil(w.Begin)}
+		}
+		return nil // le prochain exam est encore loin
+	}
+	return nil
+}
+
 var examTabs = []examTab{
 	{"00", "Exam 00"},
 	{"01", "Exam 01"},
@@ -223,6 +253,13 @@ func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 		case "projects":
 			data["ProjectRows"], status = h.pool.Projects(month, yearStr)
 		case "exam":
+			// Bouton « Rafraîchir » : on purge le cache de CET exam avant de
+			// résoudre, pour forcer un re-fetch des inscrits depuis l'API 42.
+			// force n'est pas propagé dans SelfURL, donc le polling auto ne
+			// force jamais (il respecte le TTL).
+			if q.Get("force") != "" {
+				h.pool.InvalidateExam(month, yearStr, exam)
+			}
 			data["ExamRows"], status = h.pool.Exam(month, yearStr, exam)
 			data["RefreshSec"] = int(h.pool.ExamRefresh(exam).Seconds())
 			data["ExamCountdown"] = buildExamCountdown(h.pool.AllExamWindows())

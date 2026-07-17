@@ -32,6 +32,8 @@ type handlers struct {
 	adminLogins  map[string]bool
 	pool         *pool.Service
 	ft           *fortytwo.Client
+	icsSnap      *icsStore
+	layouts      *layoutStore
 }
 
 func (h *handlers) isAdmin(user auth.User) bool {
@@ -50,12 +52,19 @@ func (h *handlers) sectionVisible(user auth.User, section string) bool {
 // navFlags renvoie les drapeaux de navigation (sections accessibles pour cet
 // utilisateur, statut admin) à fusionner dans les données d'un template de page.
 func (h *handlers) navFlags(user auth.User) map[string]any {
-	return map[string]any{
+	flags := map[string]any{
 		"IsAdmin":       h.isAdmin(user),
 		"NavMoulinette": h.sectionVisible(user, SectionMoulinette),
 		"NavClassement": h.sectionVisible(user, SectionClassement),
 		"NavHistory":    h.sectionVisible(user, SectionHistory),
 	}
+	// Bannière exam commune à toutes les pages (cache local du pool, pas d'API).
+	if h.pool != nil {
+		if b := buildExamBanner(h.pool.AllExamWindows(), time.Now()); b != nil {
+			flags["ExamBanner"] = b
+		}
+	}
+	return flags
 }
 
 type submitJobRequest struct {
