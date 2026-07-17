@@ -1,24 +1,4 @@
 (function () {
-  // --- Thème clair / sombre ---
-  var themeToggle = document.getElementById('theme-toggle');
-  var themeIcon = document.getElementById('theme-icon');
-
-  function renderThemeIcon(theme) {
-    if (themeIcon) themeIcon.src = theme === 'dark' ? '/static/moon.svg' : '/static/sun.svg';
-  }
-
-  renderThemeIcon(document.documentElement.getAttribute('data-theme'));
-
-  if (themeToggle) {
-    themeToggle.addEventListener('click', function () {
-      var root = document.documentElement;
-      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-      root.setAttribute('data-theme', next);
-      localStorage.setItem('ft-moulinette-theme', next);
-      renderThemeIcon(next);
-    });
-  }
-
   // --- Grille d'exercices ---
   // De vrais boutons et un input caché piloté ici
   var exerciseButtons = document.querySelectorAll('.exercise-grid .exercise-btn');
@@ -170,14 +150,7 @@
     errorBanner.textContent = 'Erreur réseau.';
     errorBanner.style.display = 'block';
   });
-
-  // --- Flush de l'historique à la fermeture du site (best-effort) ---
-  // pagehide se déclenche à la fermeture de l'onglet/navigateur, mais aussi
-  // sur toute navigation qui quitte la page (y compris vers une autre page
-  // du site) : dans tous les cas, forcer l'écriture de l'historique en
-  // attente ne pose pas de problème, ça la rend juste visible plus tôt sur
-  // /history. sendBeacon envoie la requête même si la page se ferme avant
-  // qu'une requête classique (fetch/XHR) n'ait eu le temps d'aboutir.
+  
   window.addEventListener('pagehide', function () {
     if (navigator.sendBeacon) navigator.sendBeacon('/ui/session/close');
   });

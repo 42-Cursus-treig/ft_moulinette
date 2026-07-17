@@ -8,8 +8,6 @@
 </div>
 
 {{else if eq .State "unavailable"}}
-<!-- 43200s = 12h : hors piscine, inutile de re-vérifier plus souvent
-     (un simple rechargement de page re-vérifie de toute façon). -->
 <div class="ranking-state ranking-unavailable brutal-card"
      hx-get="{{.SelfURL}}" hx-trigger="load delay:43200s" hx-target="#ranking-content" hx-swap="innerHTML">
   <p class="ranking-unavailable-title">Unavailable</p>

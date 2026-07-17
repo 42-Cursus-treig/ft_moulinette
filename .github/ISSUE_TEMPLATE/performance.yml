@@ -1,0 +1,41 @@
+name: Performance Issue
+description: Signaler un problème de lenteur ou de réactivité
+title: "[Performance] "
+labels:
+  - performance
+
+body:
+  - type: input
+    id: fonctionnalite
+    attributes:
+      label: Fonctionnalité concernée
+    validations:
+      required: true
+
+  - type: textarea
+    id: probleme
+    attributes:
+      label: Décrivez le problème
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Comment reproduire le problème ?
+
+  - type: dropdown
+    id: frequence
+    attributes:
+      label: Fréquence
+      options:
+        - À chaque fois
+        - Souvent
+        - Occasionnellement
+        - Une seule fois
+
+  - type: input
+    id: environnement
+    attributes:
+      label: Navigateur / appareil
+      placeholder: Firefox 141 sous Windows 11

@@ -1,0 +1,39 @@
+.pagination {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2rem;
+}
+.page-btn {
+  min-width: 42px;
+  padding: 0.5rem 0.8rem;
+  background: var(--surface);
+  border: 3px solid var(--border);
+  box-shadow: 3px 3px 0px var(--border);
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.page-btn:hover:not(:disabled):not(.active) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px var(--border);
+}
+.page-btn.active {
+  background: var(--accent);
+  color: var(--text);
+  cursor: default;
+}
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.pagination-info {
+  text-align: center;
+  margin-top: 0.8rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

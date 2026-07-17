@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 )
 
 const maxUploadSize = 20 << 20 // 20 Mo
+const historyPerPage = 10
 
 func (h *handlers) jobsForUser(user auth.User) []models.Job {
 	all := h.queue.List()
@@ -58,7 +60,53 @@ func (h *handlers) index(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// history (GET /history) liste les jobs terminés de l'utilisateur, relus depuis le disque.
+// paginate borne une page demandée à [1, totalPages] et renvoie les indices de
+// tranche sûrs (jamais hors limites), plus le numéro de page effectif et le
+// nombre total de pages. Une liste vide donne "page 1/1" avec une tranche vide.
+func paginate(total, reqPage, perPage int) (page, totalPages, start, end int) {
+	totalPages = (total + perPage - 1) / perPage
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	page = reqPage
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start = (page - 1) * perPage
+	end = start + perPage
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	return
+}
+
+// pageWindow renvoie la liste de numéros de page à afficher autour de la page
+// courante, avec au plus `span` pages de part et d'autre. Évite d'afficher 200
+// liens quand l'historique est long.
+func pageWindow(current, total, span int) []int {
+	lo := current - span
+	if lo < 1 {
+		lo = 1
+	}
+	hi := current + span
+	if hi > total {
+		hi = total
+	}
+	nums := make([]int, 0, hi-lo+1)
+	for i := lo; i <= hi; i++ {
+		nums = append(nums, i)
+	}
+	return nums
+}
+
+// history (GET /history) liste les jobs terminés de l'utilisateur, paginés.
+// ?page=N (1-based) ; hors bornes, N est ramené dans l'intervalle valide.
 func (h *handlers) history(w http.ResponseWriter, r *http.Request) {
 	user, _ := userFromContext(r.Context())
 
@@ -69,10 +117,29 @@ func (h *handlers) history(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	reqPage, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	page, totalPages, start, end := paginate(len(finished), reqPage, historyPerPage)
+
 	data := h.navFlags(user)
-	data["Jobs"] = finished
+	data["Jobs"] = finished[start:end]
 	data["User"] = user
 	data["Page"] = "history"
+	data["CurrentPage"] = page
+	data["TotalPages"] = totalPages
+	data["HasPrev"] = page > 1
+	data["HasNext"] = page < totalPages
+	data["PrevPage"] = page - 1
+	data["NextPage"] = page + 1
+	data["PageNums"] = pageWindow(page, totalPages, 2)
+	data["TotalJobs"] = len(finished)
+
+	// Requête htmx (navigation entre pages) : ne renvoyer que le fragment.
+	if r.Header.Get("HX-Request") == "true" {
+		if err := h.tmpl.ExecuteTemplate(w, "history_content", data); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 	if err := h.tmpl.ExecuteTemplate(w, "history", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

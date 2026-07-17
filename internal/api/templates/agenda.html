@@ -5,17 +5,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ft_moulinette - Agenda</title>
-<script>
-  (function () {
-    var stored = localStorage.getItem('ft-moulinette-theme');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
-  })();
-</script>
-<link rel="stylesheet" href="/static/style.css">
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/css/common.css">
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<link rel="stylesheet" href="/static/css/agenda.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.3/htmx.min.js" defer></script>
-<script src="/static/app.js" defer></script>
-<script src="/static/agenda.js" defer></script>
+<script src="/static/js/app.js" defer></script>
+<script src="/static/js/agenda.js" defer></script>
 </head>
 <body class="dash-body">
   <header>

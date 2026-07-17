@@ -1,0 +1,36 @@
+name: UI Feedback
+description: Signaler un problème ou proposer une amélioration de l'interface
+title: "[UI] "
+labels:
+  - ui
+
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page ou écran concerné
+      placeholder: Tableau de bord, Connexion, Paramètres...
+    validations:
+      required: true
+
+  - type: textarea
+    id: retour
+    attributes:
+      label: Décrivez votre retour
+    validations:
+      required: true
+
+  - type: dropdown
+    id: importance
+    attributes:
+      label: Impact
+      options:
+        - Purement esthétique
+        - Peu gênant
+        - Gênant
+        - Très gênant
+
+  - type: textarea
+    id: captures
+    attributes:
+      label: Captures d'écran

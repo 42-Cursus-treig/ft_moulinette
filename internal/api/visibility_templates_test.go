@@ -63,6 +63,7 @@ func TestPageTemplatesVisibility(t *testing.T) {
 
 	hist := navData(false, true, false, true, "history")
 	hist["Jobs"] = nil
+	hist["TotalPages"] = 1
 	if err := tmpl.ExecuteTemplate(&strings.Builder{}, "history", hist); err != nil {
 		t.Fatalf("rendu page history: %v", err)
 	}
