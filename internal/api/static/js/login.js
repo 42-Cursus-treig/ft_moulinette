@@ -8,7 +8,7 @@
 
   cta.addEventListener('click', function () {
     cta.classList.add('loading');
-    label.textContent = 'Connexion à 42…';
+    label.textContent = 'Connexion…';
     arrow.setAttribute('hidden', '');
     spinner.hidden = false;
   });
