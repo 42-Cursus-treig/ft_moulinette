@@ -98,10 +98,13 @@ func runMakeExercise(exDir string, ex testdef.ExerciseSpec, _ []string) models.E
 
 	// 5. Linker un harness contre l'artefact et tester (optionnel).
 	//    Nécessite de reconstruire si re/fclean ont nettoyé.
-	if ex.LinkHarness != "" {
+	if ex.RunArtifact != "" || ex.LinkHarness != "" {
 		if out, err := runShell(exDir, "make"); err != nil {
 			return compileErr(ex, "reconstruction avant test impossible:\n"+out)
 		}
+	}
+	if ex.RunArtifact != "" {
+		return runBinaryTests(exDir, ex) // C10 : binaire (ft_cat…) comparé au système
 	}
 	return linkAndTest(exDir, ex)
 }

@@ -370,7 +370,6 @@ func slotStatus(err error) int {
 	return http.StatusBadGateway
 }
 
-
 // agendaErrMsg met en français l'échec d'une écriture de slot.
 func agendaErrMsg(action string, err error) string {
 	var apiErr *fortytwo.APIError

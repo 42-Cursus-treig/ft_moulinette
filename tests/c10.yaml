@@ -1,0 +1,199 @@
+project: c10
+display_name: C10
+required_exercises: 4
+points:
+- 15
+- 35
+- 60
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: Makefile
+  build_mode: make
+  run_artifact: ft_display_file
+  allowed_functions:
+  - close
+  - open
+  - read
+  - write
+  expect_artifacts:
+  - ft_display_file
+  make_targets:
+  - clean
+  - fclean
+  harness_files:
+  - harness/c10/sample.txt
+  tests:
+  - name: Affiche le contenu du fichier
+    args:
+    - sample.txt
+    expected_stdout: |
+      ligne une
+      ligne deux
+      ligne trois
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Aucun argument
+    args: []
+    expected_stdout: ""
+    expected_stderr: |
+      File name missing.
+    expected_exit_code: 1
+    timeout_sec: 5
+  - name: Trop d'arguments
+    args:
+    - sample.txt
+    - sample.txt
+    expected_stdout: ""
+    expected_stderr: |
+      Too many arguments.
+    expected_exit_code: 1
+    timeout_sec: 5
+  - name: Fichier illisible
+    args:
+    - /nonexistent_file_xyz
+    expected_stdout: ""
+    expected_stderr: |
+      Cannot read file.
+    expected_exit_code: 1
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: Makefile
+  build_mode: make
+  run_artifact: ft_cat
+  reference_cmd: cat
+  allowed_functions:
+  - close
+  - open
+  - read
+  - write
+  - strerror
+  - basename
+  expect_artifacts:
+  - ft_cat
+  make_targets:
+  - clean
+  - fclean
+  harness_files:
+  - harness/c10/sample.txt
+  - harness/c10/text.txt
+  - harness/c10/empty.txt
+  tests:
+  - name: Fichier multi-lignes
+    args:
+    - sample.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Autre fichier
+    args:
+    - text.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Fichier vide
+    args:
+    - empty.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Lecture sur stdin
+    args: []
+    stdin: |
+      entrée standard
+      deuxième ligne
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: Makefile
+  build_mode: make
+  run_artifact: ft_tail
+  reference_cmd: tail
+  allowed_functions:
+  - close
+  - open
+  - read
+  - write
+  - malloc
+  - free
+  - strerror
+  - basename
+  expect_artifacts:
+  - ft_tail
+  make_targets:
+  - clean
+  - fclean
+  harness_files:
+  - harness/c10/text.txt
+  tests:
+  - name: tail -c 5
+    args:
+    - -c
+    - "5"
+    - text.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: tail -c 20
+    args:
+    - -c
+    - "20"
+    - text.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: tail -c plus grand que le fichier
+    args:
+    - -c
+    - "9999"
+    - text.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: tail -c 1
+    args:
+    - -c
+    - "1"
+    - text.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex03
+  dir: ex03
+  source_file: Makefile
+  build_mode: make
+  run_artifact: ft_hexdump
+  reference_cmd: hexdump
+  allowed_functions:
+  - close
+  - open
+  - read
+  - write
+  - malloc
+  - free
+  - strerror
+  - basename
+  expect_artifacts:
+  - ft_hexdump
+  make_targets:
+  - clean
+  - fclean
+  harness_files:
+  - harness/c10/text.txt
+  - harness/c10/mixed.bin
+  - harness/c10/empty.txt
+  tests:
+  - name: hexdump -C texte
+    args:
+    - -C
+    - text.txt
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: hexdump -C binaire (octets non imprimables)
+    args:
+    - -C
+    - mixed.bin
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: hexdump -C fichier vide
+    args:
+    - -C
+    - empty.txt
+    expected_exit_code: 0
+    timeout_sec: 5
