@@ -623,7 +623,15 @@ func runTest(binPath string, tc testdef.TestCase, checkLeaks bool) models.TestRe
 	}
 
 	exitOK := (runErr == nil) == (tc.ExpectedExitCode == 0)
-	tr.Passed = got == tc.ExpectedOut && exitOK
+	stdoutOK := got == tc.ExpectedOut
+	stderrOK := tc.ExpectedErr == nil || errOut == *tc.ExpectedErr
+	tr.Passed = stdoutOK && stderrOK && exitOK
+	if !stdoutOK {
+		// (inchangé : on montre expected/got)
+	}
+	if !stderrOK {
+		tr.Error = "sortie d'erreur inattendue"
+	}
 	if !exitOK {
 		tr.Error = fmt.Sprintf("code de sortie inattendu: %v", runErr)
 	}

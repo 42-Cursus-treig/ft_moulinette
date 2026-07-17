@@ -18,6 +18,7 @@ type TestCase struct {
 	Args             []string `yaml:"args"`
 	Stdin            string   `yaml:"stdin"`
 	ExpectedOut      string   `yaml:"expected_stdout"`
+	ExpectedErr      *string  `yaml:"expected_stderr"`
 	ExpectedExitCode int      `yaml:"expected_exit_code"`
 	TimeoutSec       int      `yaml:"timeout_sec"`
 }
@@ -45,6 +46,9 @@ type ExerciseSpec struct {
 	CheckNoRebuild     bool     `yaml:"check_no_rebuild"`
 	LinkHarness        string   `yaml:"link_harness"`
 	LinkHarnessInclude string   `yaml:"link_harness_include"`
+
+	RunArtifact  string `yaml:"run_artifact"`
+	ReferenceCmd string `yaml:"reference_cmd"`
 }
 
 type ProjectDef struct {
