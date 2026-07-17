@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -163,6 +164,46 @@ func TestMutationContourneDisjoncteur(t *testing.T) {
 	if getHits.Load() <= hit {
 		t.Errorf("le disjoncteur n'a pas été refermé par la mutation réussie")
 	}
+}
+
+// TestStaleWhileRevalidate : une donnée expirée est servie immédiatement
+// (F5 instantané) pendant qu'un rafraîchissement part en arrière-plan.
+func TestStaleWhileRevalidate(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"n": %d}`, hits.Add(1))
+	}))
+	defer srv.Close()
+	c := newTestClient(srv.URL)
+
+	var out struct{ N int }
+	// TTL nul : l'entrée expire immédiatement — parfait pour le test.
+	if err := c.get(context.Background(), "alice", "tok", "/v2/me", nil, 0, &out); err != nil || out.N != 1 {
+		t.Fatalf("premier appel : n=%d err=%v", out.N, err)
+	}
+
+	// Deuxième lecture : la donnée périmée (n=1) est servie SANS attendre,
+	// et un rafraîchissement part derrière.
+	if err := c.get(context.Background(), "alice", "tok", "/v2/me", nil, time.Minute, &out); err != nil || out.N != 1 {
+		t.Fatalf("lecture périmée : n=%d err=%v, attendu l'ancienne valeur 1", out.N, err)
+	}
+
+	// Le rafraîchissement d'arrière-plan finit par passer (n=2 au cache).
+	deadline := time.Now().Add(2 * time.Second)
+	for hits.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("%d appels réseau, le rafraîchissement d'arrière-plan n'est pas parti", hits.Load())
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := c.get(context.Background(), "alice", "tok", "/v2/me", nil, time.Minute, &out); err == nil && out.N == 2 {
+			return // la valeur fraîche a remplacé la périmée
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("la valeur rafraîchie n'est jamais apparue (n=%d)", out.N)
 }
 
 // TestScaleUserTolereInvisible : l'API renvoie parfois la chaîne "invisible"

@@ -33,6 +33,7 @@ type handlers struct {
 	pool         *pool.Service
 	ft           *fortytwo.Client
 	icsSnap      *icsStore
+	layouts      *layoutStore
 }
 
 func (h *handlers) isAdmin(user auth.User) bool {

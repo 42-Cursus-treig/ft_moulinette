@@ -63,14 +63,41 @@ func Run(job models.Job, report func(done, total int)) (*models.Result, error) {
 			exDir = filepath.Join(projectRoot, ex.Dir)
 		}
 
-		exResult := runExercise(exDir, ex, def.NormExtraRules)
+		var exResult models.ExerciseResult
+		switch ex.BuildMode {
+		case "script":
+			exResult = runScriptExercise(exDir, ex, def.NormExtraRules)
+		case "make":
+			exResult = runMakeExercise(exDir, ex, def.NormExtraRules)
+		default:
+			exResult = runExercise(exDir, ex, def.NormExtraRules)
+		}
 		result.ExerciseResults = append(result.ExerciseResults, exResult)
 		report(i+1, total)
 	}
 
 	result.Score = computeScore(result.ExerciseResults, def.Points)
-	result.Passed = result.Score >= 50
+	result.Passed = passed(result.ExerciseResults, def)
 	return result, nil
+}
+
+// passed décide du verdict global. Si le projet fixe RequiredExercises, il faut
+// que ce nombre d'exercices (les premiers, consécutivement) soient OK - un
+// barème de points élevé ne suffit pas. Sinon, on retombe sur le seuil
+// historique score >= 50.
+func passed(results []models.ExerciseResult, def *testdef.ProjectDef) bool {
+	if def.RequiredExercises > 0 {
+		if len(results) < def.RequiredExercises {
+			return false
+		}
+		for i := 0; i < def.RequiredExercises; i++ {
+			if results[i].Status != models.ExerciseOK {
+				return false
+			}
+		}
+		return true
+	}
+	return computeScore(results, def.Points) >= 50
 }
 
 // resolveProjectRoot localise le vrai dossier racine du projet à l'intérieur
@@ -198,6 +225,17 @@ func computeScore(results []models.ExerciseResult, points []int) int {
 // respecte pas la Norme") : fichier présent -> norme -> compilation ->
 // fonctions autorisées -> tests fonctionnels. Une erreur à une étape
 // n'affecte que CET exercice, les autres du même projet continuent.
+// runExercise - VERSION C08 (remplace la fonction existante dans runner.go).
+//
+// Ordre : fichier présent -> norme -> compilation -> fonctions autorisées ->
+// tests fonctionnels. Nouveautés C08 :
+//   - règles de norme par exercice (ex.NormExtraRules) ;
+//   - fichiers auxiliaires serveur (ex.HarnessFiles : headers fournis, impl.
+//     de référence) copiés sous leur vrai nom ;
+//   - un .h (source de l'élève ou fichier fourni) est copié mais jamais
+//     compilé directement ;
+//   - compilation sans link (ex.CompileOnly) pour les exercices header-only ;
+//   - exercice compile-only ou sans tests : OK si la compilation réussit.
 func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string) models.ExerciseResult {
 	sourcePath := filepath.Join(exDir, ex.SourceFile)
 	if _, err := os.Stat(sourcePath); err != nil {
@@ -208,7 +246,12 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 		}
 	}
 
-	if violations, err := checkNorm(exDir, ex.SourceFile, normExtraRules); err != nil {
+	// Règles de norme propres à l'exercice si définies, sinon défaut projet.
+	rules := normExtraRules
+	if ex.NormExtraRules != nil {
+		rules = ex.NormExtraRules
+	}
+	if violations, err := checkNorm(exDir, ex.SourceFile, rules); err != nil {
 		return models.ExerciseResult{
 			Name:   ex.Name,
 			Status: models.ExerciseCompileError,
@@ -222,7 +265,14 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 		}
 	}
 
-	compileFiles := []string{ex.SourceFile}
+	// compileFiles ne contient QUE des .c. Le fichier source de l'élève n'y
+	// entre que s'il est un .c (un .h n'est jamais passé à gcc, juste présent
+	// pour les #include).
+	var compileFiles []string
+	if strings.HasSuffix(ex.SourceFile, ".c") {
+		compileFiles = append(compileFiles, ex.SourceFile)
+	}
+
 	for _, extra := range ex.ExtraSources {
 		if _, err := os.Stat(filepath.Join(exDir, extra)); err != nil {
 			return models.ExerciseResult{
@@ -231,11 +281,30 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 				Log:    fmt.Sprintf("fichier attendu introuvable : %s", filepath.Join(ex.Dir, extra)),
 			}
 		}
-		compileFiles = append(compileFiles, extra)
+		if strings.HasSuffix(extra, ".c") {
+			compileFiles = append(compileFiles, extra)
+		}
 	}
+
+	// Fichiers auxiliaires fournis par le serveur (headers, impl. de référence).
+	// Copiés sous leur basename pour que les #include "xxx.h" fonctionnent.
+	for _, hf := range ex.HarnessFiles {
+		src := filepath.Join(testsDir, hf)
+		dst := filepath.Join(exDir, filepath.Base(hf))
+		if err := copyFile(src, dst); err != nil {
+			return models.ExerciseResult{
+				Name:   ex.Name,
+				Status: models.ExerciseCompileError,
+				Log:    fmt.Sprintf("fichier de test introuvable côté serveur (%s): %v", hf, err),
+			}
+		}
+		if strings.HasSuffix(hf, ".c") {
+			compileFiles = append(compileFiles, filepath.Base(hf))
+		}
+	}
+
+	// Harnais principal (main de test), toujours un .c.
 	if ex.Harness != "" {
-		// Le harnais (main() de test) vit côté serveur, pas dans l'archive de
-		// l'élève : on le copie dans son dossier de compilation le temps du build.
 		harnessSrc := filepath.Join(testsDir, ex.Harness)
 		harnessDst := filepath.Join(exDir, "_harness.c")
 		if err := copyFile(harnessSrc, harnessDst); err != nil {
@@ -248,7 +317,15 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 		compileFiles = append(compileFiles, "_harness.c")
 	}
 
-	binPath, buildLog, err := compile(exDir, compileFiles...)
+	if len(compileFiles) == 0 {
+		return models.ExerciseResult{
+			Name:   ex.Name,
+			Status: models.ExerciseCompileError,
+			Log:    "aucun fichier .c à compiler (harness manquant pour un exercice header-only ?)",
+		}
+	}
+
+	binPath, buildLog, err := compile(exDir, ex.CompileOnly, compileFiles...)
 	if err != nil {
 		return models.ExerciseResult{
 			Name:   ex.Name,
@@ -271,6 +348,16 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 			Name:   ex.Name,
 			Status: models.ExerciseCheating,
 			Log:    "Fonction(s) non autorisée(s) appelée(s) : " + strings.Join(forbidden, ", "),
+		}
+	}
+
+	// Exercice compile-only, ou sans aucun test : réussir la compilation (et la
+	// norme) suffit. Pas d'exécution.
+	if ex.CompileOnly || len(ex.Tests) == 0 {
+		return models.ExerciseResult{
+			Name:   ex.Name,
+			Status: models.ExerciseOK,
+			Log:    "compilation réussie",
 		}
 	}
 
@@ -444,8 +531,7 @@ func copyDir(src, dst string) error {
 // compile lance la compilation à l'intérieur du conteneur sandbox et
 // renvoie le chemin du binaire produit sur l'hôte (dans dir). Accepte
 // plusieurs fichiers source (le fichier de l'élève + un éventuel harnais).
-func compile(dir string, sourceFiles ...string) (binPath string, log string, err error) {
-	binName := "a.out"
+func compile(dir string, compileOnly bool, sourceFiles ...string) (binPath string, log string, err error) {
 	args := []string{
 		"run", "--rm",
 		"--network", "none",
@@ -456,14 +542,24 @@ func compile(dir string, sourceFiles ...string) (binPath string, log string, err
 		"-w", "/work",
 		sandboxImage,
 	}
-	gccArgs := append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-o", binName}, sourceFiles...)
+
+	var gccArgs []string
+	if compileOnly {
+		// -c : compilation seule, pas de link. On produit un .o jetable.
+		gccArgs = append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-c", "-o", "_compile.o"}, sourceFiles...)
+	} else {
+		gccArgs = append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-o", "a.out"}, sourceFiles...)
+	}
 	args = append(args, gccArgs...)
 
 	out, _, _, runErr := runDocker(args, 15*time.Second, nil)
 	if runErr != nil {
 		return "", out, runErr
 	}
-	return filepath.Join(dir, binName), out, nil
+	if compileOnly {
+		return "", out, nil // pas de binaire à exécuter
+	}
+	return filepath.Join(dir, "a.out"), out, nil
 }
 
 func runTest(binPath string, tc testdef.TestCase, checkLeaks bool) models.TestResult {

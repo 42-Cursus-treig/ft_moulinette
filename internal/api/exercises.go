@@ -18,7 +18,7 @@ type ExerciseTile struct {
 // exerciseTiles fusionne les sujets réels et les sujets verrouillés sans
 // fichier YAML (placeholders admin), triés par ID. Un sujet réel est
 // verrouillé par défaut tant qu'il n'a pas été explicitement déverrouillé
-// via /admin (voir locks.Store.IsLocked) — donc un nouveau tests/<id>.yaml
+// via /admin (voir locks.Store.IsLocked) - donc un nouveau tests/<id>.yaml
 // n'est jamais accessible tout de suite après son ajout.
 func (h *handlers) exerciseTiles() ([]ExerciseTile, error) {
 	options, err := testdef.ListExercises(h.testsDir)
@@ -45,7 +45,7 @@ func (h *handlers) exerciseTiles() ([]ExerciseTile, error) {
 	}
 	// Un sujet réordonné manuellement (Order > 0) passe avant tout sujet
 	// jamais réordonné, dans l'ordre choisi ; les non-réordonnés se trient
-	// entre eux par ID, et arrivent après — un sujet nouvellement ajouté
+	// entre eux par ID, et arrivent après - un sujet nouvellement ajouté
 	// n'a donc jamais l'air de sauter en tête de liste.
 	sort.Slice(out, func(i, j int) bool {
 		oi, oj := h.locks.OrderOf(out[i].ID), h.locks.OrderOf(out[j].ID)

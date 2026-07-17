@@ -83,7 +83,7 @@ func main() {
 	}
 	// Scope OAuth demandé à 42. Défaut « public » (profil + classement) ;
 	// mettre « public projects » pour débloquer l'agenda des créneaux de
-	// correction — à condition d'avoir aussi coché « projects » sur l'app côté
+	// correction - à condition d'avoir aussi coché « projects » sur l'app côté
 	// intra. Changer ce scope oblige les utilisateurs à se reconnecter (le
 	// nouveau droit n'est porté que par un jeton fraîchement émis).
 	oauthScope := os.Getenv("MOULINETTE_42_SCOPE")
@@ -139,13 +139,17 @@ func main() {
 	if poolHistoryPath == "" {
 		poolHistoryPath = "data/pool_history.json"
 	}
+	layoutsPath := os.Getenv("MOULINETTE_LAYOUTS_FILE")
+	if layoutsPath == "" {
+		layoutsPath = "data/dashboard_layouts.json"
+	}
 
 	poolService := pool.NewService(clientID, clientSecret, campusName, poolCachePath, poolHistoryPath)
 	// Rafraîchit Score/Projets côté serveur en continu, sinon les classements
 	// ne se mettent à jour que quand un navigateur a la page ouverte.
 	poolService.StartRefreshLoop()
 
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, layoutsPath)
 	if err != nil {
 		log.Fatal(err)
 	}

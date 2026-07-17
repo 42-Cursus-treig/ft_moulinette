@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -100,6 +101,7 @@ type Coalition struct {
 type CoalitionUser struct {
 	ID          int `json:"id"`
 	CoalitionID int `json:"coalition_id"`
+	UserID      int `json:"user_id"`
 	Score       int `json:"score"`
 	Rank        int `json:"rank"`
 }
@@ -201,7 +203,7 @@ func (b *SlotBooking) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// Me récupère le profil du token — la source de la moitié des cartes du
+// Me récupère le profil du token - la source de la moitié des cartes du
 // dashboard (héro, projets, skills, succès), d'où son cache partagé.
 func (c *Client) Me(ctx context.Context, login, tok string) (*Me, error) {
 	var me Me
@@ -287,6 +289,35 @@ func (c *Client) Slots(ctx context.Context, login, tok string, from, to time.Tim
 	return out, err
 }
 
+// CoalitionTop renvoie les meilleurs membres d'une coalition. L'API 42 ne
+// sait pas trier coalitions_users par score (« The score field is not
+// sortable ») : on récupère jusqu'à 3 pages de 100 et on trie nous-mêmes —
+// exact pour des coalitions de campus, et chaque page est en cache 15 min.
+func (c *Client) CoalitionTop(ctx context.Context, login, tok string, coalitionID, count int) ([]CoalitionUser, error) {
+	var all []CoalitionUser
+	for page := 1; page <= 3; page++ {
+		params := url.Values{}
+		params.Set("page[size]", "100")
+		params.Set("page[number]", strconv.Itoa(page))
+		var chunk []CoalitionUser
+		if err := c.get(ctx, login, tok, fmt.Sprintf("/v2/coalitions/%d/coalitions_users", coalitionID), params, 15*time.Minute, &chunk); err != nil {
+			if page == 1 {
+				return nil, err
+			}
+			break // la première page suffit pour un top raisonnable
+		}
+		all = append(all, chunk...)
+		if len(chunk) < 100 {
+			break
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Score > all[j].Score })
+	if len(all) > count {
+		all = all[:count]
+	}
+	return all, nil
+}
+
 // UserProfile renvoie le profil public d'un autre étudiant, par login.
 // L'endpoint /v2/users accepte le login comme identifiant. TTL long : une
 // fiche de pisciner ne bouge pas à la minute et chaque recherche coûte un
@@ -337,7 +368,7 @@ func (c *Client) DeleteSlot(ctx context.Context, login, tok string, slotID int) 
 	return err
 }
 
-// Project renvoie le nom d'un projet — pour libeller les défenses à venir.
+// Project renvoie le nom d'un projet - pour libeller les défenses à venir.
 // Peu de projets distincts pendant une piscine : cache long.
 func (c *Client) Project(ctx context.Context, login, tok string, id int) (string, error) {
 	var out struct {

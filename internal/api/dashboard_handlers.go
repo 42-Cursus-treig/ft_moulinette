@@ -20,15 +20,51 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 )
 
-// dashboardPage (GET /dashboard) rend la coquille de la page : chaque carte
-// se charge ensuite en htmx (hx-trigger="load"), pour que les latences et
-// pannes de l'API 42 ne bloquent jamais la page — une carte en échec propose
-// « Réessayer », les autres vivent leur vie.
+// widgetView est un widget prêt à rendre : définition du registre + largeur
+// choisie par l'utilisateur.
+type widgetView struct {
+	ID      string
+	Title   string
+	Trigger string
+	Span    int
+}
+
+// dashboardPage (GET /dashboard) rend la coquille de la page selon la
+// disposition de l'utilisateur (ordre, visibilité, largeur des widgets) ;
+// chaque carte se charge ensuite en htmx, pour que les latences et pannes de
+// l'API 42 ne bloquent jamais la page.
 func (h *handlers) dashboardPage(w http.ResponseWriter, r *http.Request) {
 	user, _ := userFromContext(r.Context())
+
+	lay := defaultLayout()
+	if saved, ok := h.layouts.Get(user.Login); ok {
+		if s := sanitizeLayout(saved); len(s) > 0 {
+			lay = s
+		}
+	}
+	inLayout := map[string]bool{}
+	widgets := make([]widgetView, 0, len(lay))
+	for _, wp := range lay {
+		wdef, _ := widgetByID(wp.ID) // sanitizeLayout garantit l'existence
+		trig := wdef.Trigger
+		if trig == "" {
+			trig = "load"
+		}
+		widgets = append(widgets, widgetView{ID: wp.ID, Title: wdef.Title, Trigger: trig, Span: wp.Span})
+		inLayout[wp.ID] = true
+	}
+	var reserve []widgetView
+	for _, wdef := range dashWidgets {
+		if !inLayout[wdef.ID] {
+			reserve = append(reserve, widgetView{ID: wdef.ID, Title: wdef.Title, Span: wdef.Span})
+		}
+	}
+
 	data := h.navFlags(user)
 	data["User"] = user
 	data["Page"] = "dashboard"
+	data["Widgets"] = widgets
+	data["Reserve"] = reserve
 	if err := h.tmpl.ExecuteTemplate(w, "dashboard", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -46,7 +82,7 @@ var dashCards = map[string]func(*handlers, context.Context, auth.User, string) (
 	"points":       (*handlers).dashPoints,
 	"achievements": (*handlers).dashAchievements,
 	"events":       (*handlers).dashEvents,
-	"promo":        (*handlers).dashPromo,
+	"top5":         (*handlers).dashTop5,
 	"exam":         (*handlers).dashExam,
 	"defenses":     (*handlers).dashDefenses,
 	"progress":     (*handlers).dashProgress,
@@ -57,7 +93,7 @@ var dashCards = map[string]func(*handlers, context.Context, auth.User, string) (
 // dashLocalCards se servent des données déjà en cache côté serveur (service
 // pool) ou d'aucune donnée : pas besoin de token 42, elles marchent même si
 // le refresh échoue.
-var dashLocalCards = map[string]bool{"promo": true, "exam": true, "progress": true, "lookup": true}
+var dashLocalCards = map[string]bool{"progress": true, "lookup": true}
 
 // dashboardCard (GET /ui/dashboard/{card}) rend une carte du dashboard.
 // Les erreurs sortent en 200 avec un panneau « Réessayer » : htmx ne swappe
@@ -99,11 +135,11 @@ func (h *handlers) dashboardCard(w http.ResponseWriter, r *http.Request) {
 
 // renderDashError affiche l'état d'erreur d'une carte, adapté à la cause :
 // une panne se retente (bouton Réessayer), un refus de scope est permanent
-// (aucun bouton — réessayer ne changera jamais rien), une session morte
+// (aucun bouton - réessayer ne changera jamais rien), une session morte
 // propose de se reconnecter.
 func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error) {
 	kind := "warn"
-	msg := "L'API 42 n'a pas répondu. Elle connaît régulièrement des pannes — réessaie dans un instant."
+	msg := "L'API 42 n'a pas répondu. Elle connaît régulièrement des pannes - réessaie dans un instant."
 	var apiErr *fortytwo.APIError
 	switch {
 	case errors.Is(err, fortytwo.ErrDown):
@@ -129,7 +165,7 @@ func (h *handlers) renderDashError(w http.ResponseWriter, card string, err error
 }
 
 // scopeForbidden dit si err est un refus définitif de l'API 42 (403 : le
-// scope de l'app ne couvre pas l'endpoint) — utile aux cartes qui préfèrent
+// scope de l'app ne couvre pas l'endpoint) - utile aux cartes qui préfèrent
 // dégrader leur contenu plutôt que d'afficher un panneau d'erreur entier.
 func scopeForbidden(err error) bool {
 	var apiErr *fortytwo.APIError
@@ -353,7 +389,7 @@ func buildHeatmap(stats map[string]string, start, today time.Time) ([][]hmCell, 
 			hrs := parseLogHours(stats[date.Format("2006-01-02")])
 			col[d] = hmCell{
 				Class: hmClass(hrs),
-				Title: fmt.Sprintf("%s %d %s — %s", frDaysShort[date.Weekday()], date.Day(), frMonthsShort[date.Month()-1], fmtHours(hrs)),
+				Title: fmt.Sprintf("%s %d %s - %s", frDaysShort[date.Weekday()], date.Day(), frMonthsShort[date.Month()-1], fmtHours(hrs)),
 			}
 		}
 		weeks = append(weeks, col)
@@ -457,7 +493,7 @@ func (h *handlers) dashProjects(ctx context.Context, user auth.User, tok string)
 		default:
 			v.InProgress++
 		}
-		row := dashProjectRow{Name: pu.Project.Name, Status: status, Mark: "—"}
+		row := dashProjectRow{Name: pu.Project.Name, Status: status, Mark: "-"}
 		if pu.FinalMark != nil {
 			row.Mark = strconv.Itoa(*pu.FinalMark)
 		}
@@ -741,7 +777,7 @@ func (h *handlers) dashPoints(ctx context.Context, user auth.User, tok string) (
 		// Le solde vient de /v2/me : autant l'afficher même sans historique.
 		v := dashPointsView{Current: me.CorrectionPoint}
 		if scopeForbidden(err) {
-			v.Note = "L'historique n'est pas lisible avec le scope « public » de l'application — le solde, lui, est à jour."
+			v.Note = "L'historique n'est pas lisible avec le scope « public » de l'application - le solde, lui, est à jour."
 		} else {
 			v.Note = "Historique momentanément indisponible (API 42)."
 		}
@@ -918,110 +954,144 @@ func (h *handlers) dashEvents(ctx context.Context, user auth.User, tok string) (
 	return v, nil
 }
 
-// --- Carte classement promo (données locales du service pool) ---
+// --- Carte classement coalition (top 5) ---
 
-type dashPromoRow struct {
-	Medal string
-	Login string
-	Score string
+type dashTop5Row struct {
+	Rank   string
+	Login  string
+	WhoURL string
+	Score  string
+	Me     bool
 }
 
-type dashPromoView struct {
-	Unavailable bool
-	Reason      string
-	InRoster    bool
-	Rank        string
-	Total       int
-	Score       string
-	Level       string
-	Coalition   string
-	Ahead       string         // écart avec le rang au-dessus ("" si premier)
-	Podium      []dashPromoRow // top 3, montré quand l'utilisateur n'est pas classé
+type dashTop5View struct {
+	Empty     bool
+	Coalition string
+	Color     template.CSS
+	Rows      []dashTop5Row
+	MyRank    string // rang de l'utilisateur, montré s'il est hors top 5
+	MyScore   string
+	Note      string
 }
 
-// dashPromo situe l'utilisateur dans le classement de la promo, à partir du
-// cache du service pool (rafraîchi en continu côté serveur) : aucun appel à
-// l'API 42, la carte répond instantanément même en pleine panne.
-func (h *handlers) dashPromo(_ context.Context, user auth.User, _ string) (any, error) {
-	v := dashPromoView{}
-	if h.pool == nil {
-		v.Unavailable, v.Reason = true, "Service de classement inactif."
-		return v, nil
+// dashTop5 affiche le top 5 de la coalition de l'utilisateur — quelle que
+// soit sa promo, piscine ou pas. La coalition vient des mêmes caches que la
+// carte Coalition (zéro appel en plus) ; le palmarès coûte 1 appel + jusqu'à
+// 5 lectures de profils, le tout en cache 15 min.
+func (h *handlers) dashTop5(ctx context.Context, user auth.User, tok string) (any, error) {
+	cols, err := h.ft.Coalitions(ctx, user.Login, tok, user.ID)
+	if err != nil {
+		return nil, err
 	}
-	month, year, ok := pool.CurrentSession(time.Now())
-	if !ok {
-		v.Unavailable, v.Reason = true, "Pas de piscine en cours."
-		return v, nil
-	}
-	rows, _ := h.pool.Score(month, strconv.Itoa(year))
-	if len(rows) == 0 {
-		v.Unavailable, v.Reason = true, "Classement pas encore chargé — repasse dans une minute."
-		return v, nil
+	if len(cols) == 0 {
+		return dashTop5View{Empty: true}, nil
 	}
 
-	sorted := append([]pool.ScoreRow(nil), rows...)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Score > sorted[j].Score })
-	v.Total = len(sorted)
-	for i, row := range sorted {
-		if row.Login != user.Login {
-			continue
+	// Même choix de coalition « active » que la carte Coalition : l'adhésion
+	// la plus récente. L'échec de coalitions_users n'est pas bloquant.
+	chosen := cols[0]
+	var mine *fortytwo.CoalitionUser
+	if cus, err := h.ft.CoalitionUsers(ctx, user.Login, tok, user.ID); err == nil && len(cus) > 0 {
+		best := cus[0]
+		for _, cu := range cus[1:] {
+			if cu.ID > best.ID {
+				best = cu
+			}
 		}
-		v.InRoster = true
-		v.Rank = "#" + strconv.Itoa(i+1)
-		v.Score = fmtInt(row.Score)
-		v.Level = fmt.Sprintf("%.2f", row.Level)
-		v.Coalition = row.Coalition
-		if i > 0 {
-			v.Ahead = fmt.Sprintf("à %s pts du rang au-dessus", fmtInt(sorted[i-1].Score-row.Score))
+		for _, c := range cols {
+			if c.ID == best.CoalitionID {
+				chosen = c
+			}
 		}
-		break
+		mine = &best
 	}
-	if !v.InRoster {
-		medals := []string{"🥇", "🥈", "🥉"}
-		for i := 0; i < len(sorted) && i < 3; i++ {
-			v.Podium = append(v.Podium, dashPromoRow{Medal: medals[i], Login: sorted[i].Login, Score: fmtInt(sorted[i].Score)})
+
+	v := dashTop5View{Coalition: chosen.Name, Color: template.CSS("var(--accent)")}
+	if hexColorRe.MatchString(chosen.Color) {
+		v.Color = template.CSS(chosen.Color)
+	}
+
+	top, err := h.ft.CoalitionTop(ctx, user.Login, tok, chosen.ID, 5)
+	if err != nil {
+		return nil, err
+	}
+	inTop := false
+	for i, cu := range top {
+		row := dashTop5Row{Rank: "#" + strconv.Itoa(i+1), Score: fmtInt(cu.Score), Me: cu.UserID == user.ID}
+		if row.Me {
+			inTop = true
+			row.Login = user.Login
+		} else if p, err := h.ft.UserProfile(ctx, user.Login, tok, strconv.Itoa(cu.UserID)); err == nil && p.Login != "" {
+			row.Login = p.Login
+		} else {
+			row.Login = "…" // profil momentanément illisible : on garde le rang
 		}
+		if row.Login != "…" {
+			row.WhoURL = "https://profile.intra.42.fr/users/" + url.PathEscape(row.Login)
+		}
+		v.Rows = append(v.Rows, row)
+	}
+	if mine != nil && !inTop {
+		if mine.Rank > 0 {
+			v.MyRank = "#" + strconv.Itoa(mine.Rank)
+		}
+		v.MyScore = fmtInt(mine.Score)
+	}
+	if len(v.Rows) == 0 {
+		v.Note = "Classement pas encore disponible pour cette coalition."
 	}
 	return v, nil
 }
 
-// --- Carte exams (horaire local du service pool) ---
+// --- Carte exam (inscriptions de l'utilisateur) ---
 
 type dashExamView struct {
-	Available bool
-	State     string // upcoming | active | done
-	Label     string
-	Date      string
-	Hours     string // « 08:00 → 12:00 (4h00) »
-	Countdown string
-	Windows   []examCountdownItem
+	Registered bool
+	Name       string
+	Location   string
+	When       string // « ven. 18 juil. · 08h00 → 12h00 »
+	Countdown  string
+	Active     bool
+	Others     []string // autres exams inscrits, à venir après celui-là
 }
 
-func (h *handlers) dashExam(_ context.Context, _ auth.User, _ string) (any, error) {
-	v := dashExamView{}
-	if h.pool == nil {
-		return v, nil
+// dashExam affiche le prochain exam auquel l'utilisateur est INSCRIT. Sur
+// l'intra, un exam est un événement (kind « exam ») auquel on s'inscrit : on
+// filtre la liste d'événements déjà en cache pour la carte Événements — zéro
+// appel API supplémentaire. (L'endpoint dédié /v2/users/:id/exams est
+// interdit aux comptes étudiants : Access Denied constaté.)
+func (h *handlers) dashExam(ctx context.Context, user auth.User, tok string) (any, error) {
+	events, err := h.ft.Events(ctx, user.Login, tok, user.ID)
+	if err != nil {
+		return nil, err
 	}
-	cd := buildExamCountdown(h.pool.AllExamWindows())
-	if cd.Focus == nil {
-		return v, nil
+	now := time.Now()
+	var upcoming []fortytwo.Event
+	for _, ev := range events {
+		if ev.Kind == "exam" && ev.EndAt.After(now) {
+			upcoming = append(upcoming, ev)
+		}
 	}
-	v.Available = true
-	v.State = cd.State
-	v.Label = cd.Focus.Label
-	v.Date = cd.Focus.Date
-	v.Hours = fmt.Sprintf("%s → %s (%s)", cd.Focus.Start, cd.Focus.End, cd.Focus.Duration)
-	v.Windows = cd.Items
+	sort.Slice(upcoming, func(i, j int) bool { return upcoming[i].BeginAt.Before(upcoming[j].BeginAt) })
 
-	begin, _ := time.Parse(time.RFC3339, cd.Focus.Begin)
-	end, _ := time.Parse(time.RFC3339, cd.Focus.Finish)
-	switch cd.State {
-	case "active":
-		v.Countdown = "se termine " + humanUntil(end)
-	case "upcoming":
-		v.Countdown = humanUntil(begin)
-	default:
-		v.Countdown = "tous les exams sont passés"
+	v := dashExamView{}
+	if len(upcoming) == 0 {
+		return v, nil // pas inscrit au prochain exam : la carte le dit
+	}
+	next := upcoming[0]
+	b, e := next.BeginAt.Local(), next.EndAt.Local()
+	v.Registered = true
+	v.Name = next.Name
+	v.Location = next.Location
+	v.When = fmt.Sprintf("%s · %02dh%02d → %02dh%02d", frDateShort(b), b.Hour(), b.Minute(), e.Hour(), e.Minute())
+	if now.After(next.BeginAt) {
+		v.Active = true
+		v.Countdown = "se termine " + humanUntil(next.EndAt)
+	} else {
+		v.Countdown = humanUntil(next.BeginAt)
+	}
+	for _, ex := range upcoming[1:] {
+		v.Others = append(v.Others, fmt.Sprintf("%s — %s", ex.Name, frDateTimeShort(ex.BeginAt)))
 	}
 	return v, nil
 }

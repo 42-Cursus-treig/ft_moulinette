@@ -1,0 +1,109 @@
+project: c09
+display_name: C09
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+required_exercises: 3
+points:
+- 30
+- 60
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: ft_putchar.c
+  extra_sources:
+  - ft_swap.c
+  - ft_putstr.c
+  - ft_strlen.c
+  - ft_strcmp.c
+  build_mode: script
+  build_script: libft_creator.sh
+  allowed_functions:
+  - write
+  expect_artifacts:
+  - libft.a
+  archive_symbols:
+  - ft_putchar
+  - ft_swap
+  - ft_putstr
+  - ft_strlen
+  - ft_strcmp
+  link_harness: harness/c09/ex00_main.c
+  link_harness_include: harness/c09/libft_srcs/includes/ft.h
+  tests:
+  - name: Toutes les fonctions
+    args: []
+    stdin: ''
+    expected_stdout: |
+      putstr;C
+      73
+      1
+      11
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: Makefile
+  build_mode: make
+  provided_tree: harness/c09/libft_srcs
+  allowed_functions:
+  - write
+  expect_artifacts:
+  - libft.a
+  make_targets:
+  - fclean
+  - re
+  check_no_rebuild: true
+  link_harness: harness/c09/ex00_main.c
+  link_harness_include: harness/c09/libft_srcs/includes/ft.h
+  tests:
+  - name: Lib fonctionnelle
+    args: []
+    stdin: ''
+    expected_stdout: |
+      putstr;C
+      73
+      1
+      11
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: ft_split.c
+  harness: harness/c09/ex02.c
+  allowed_functions:
+  - malloc
+  tests:
+  - name: Separateur espace
+    args:
+    - 'hello world foo'
+    - ' '
+    stdin: ''
+    expected_stdout: |-
+      hello
+      world
+      foo
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Separateurs multiples
+    args:
+    - 'a,b;c,d'
+    - ',;'
+    stdin: ''
+    expected_stdout: |-
+      a
+      b
+      c
+      d
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Separateurs consecutifs et bords
+    args:
+    - '  multi   sep  '
+    - ' '
+    stdin: ''
+    expected_stdout: |-
+      multi
+      sep
+    expected_exit_code: 0
+    timeout_sec: 5

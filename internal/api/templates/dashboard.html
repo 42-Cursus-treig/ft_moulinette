@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ft_moulinette — Dashboard</title>
+<title>ft_moulinette - Dashboard</title>
 <script>
   (function () {
     var stored = localStorage.getItem('ft-moulinette-theme');
@@ -26,53 +26,58 @@
 
   {{template "exam_banner" .}}
 
+  <div class="dash-tools">
+    <button type="button" id="dash-edit" class="dash-retry">⚙ Personnaliser le dashboard</button>
+  </div>
+
   <main class="dash-grid">
-    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/hero" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Profil"}}
+    {{range .Widgets}}
+    <section class="brutal-card dash-card dash-span-{{.Span}}" hx-get="/ui/dashboard/{{.ID}}" hx-trigger="{{.Trigger}}" hx-swap="innerHTML">
+      {{template "dash_loading" .Title}}
     </section>
-    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/defenses" hx-trigger="load, every 120s [document.visibilityState === 'visible']" hx-swap="innerHTML">
-      {{template "dash_loading" "Corrections à venir"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/logtime" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Temps de présence"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/coalition" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Coalition"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/projects" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Projets"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/skills" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Compétences"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/promo" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Classement promo"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/exam" hx-trigger="load, every 180s [document.visibilityState === 'visible']" hx-swap="innerHTML">
-      {{template "dash_loading" "Exams"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/progress" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Ta progression"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/ready" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Prêt à rendre"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/evals" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Évaluations"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-6" hx-get="/ui/dashboard/points" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Points de correction"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-7" hx-get="/ui/dashboard/achievements" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Succès"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-5" hx-get="/ui/dashboard/events" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Événements"}}
-    </section>
-    <section class="brutal-card dash-card dash-span-12" hx-get="/ui/dashboard/lookup" hx-trigger="load" hx-swap="innerHTML">
-      {{template "dash_loading" "Chercher un pisciner"}}
-    </section>
+    {{end}}
   </main>
+
+  <div id="dash-editor" class="dash-editor" hidden>
+    <div class="dash-editor-box brutal-card">
+      <div class="dash-head">
+        <h2 class="dash-title">Personnaliser le dashboard</h2>
+        <button type="button" id="dash-editor-close" class="dash-retry" aria-label="Fermer">✕</button>
+      </div>
+      <p class="ag-hint">
+        Glisse un widget de l'<strong>inventaire</strong> vers l'aperçu pour l'afficher (et inversement pour le ranger) ·
+        déplace les cartes dans l'aperçu pour réordonner · attrape le <strong>bord droit</strong> d'une carte pour la
+        redimensionner : Petite ⅓ · Moyenne ½ · Grande pleine largeur.
+      </p>
+      <div class="dash-editor-panes">
+        <aside class="dash-pane" data-pane="reserve">
+          <h3 class="evals-subtitle">Inventaire (masqués)</h3>
+          <ul class="widget-list" id="pane-reserve">
+            {{range .Reserve}}
+            <li class="widget-mini" data-id="{{.ID}}" data-span="{{.Span}}"><span class="widget-name">{{.Title}}</span></li>
+            {{end}}
+          </ul>
+        </aside>
+        <div class="dash-pane preview-pane" data-pane="active">
+          <h3 class="evals-subtitle">Ton dashboard (aperçu)</h3>
+          <div class="dash-preview" id="pane-active">
+            {{range .Widgets}}
+            <div class="widget-mini placed span-{{.Span}}" data-id="{{.ID}}" data-span="{{.Span}}">
+              <span class="widget-name">{{.Title}}</span>
+              <span class="widget-size-label"></span>
+              <span class="widget-resize" title="Redimensionner"></span>
+            </div>
+            {{end}}
+          </div>
+        </div>
+      </div>
+      <div class="dash-editor-actions">
+        <button type="button" id="dash-layout-save" class="dash-retry save">Enregistrer</button>
+        <button type="button" id="dash-layout-reset" class="dash-retry">Réinitialiser</button>
+        <span id="dash-layout-msg" class="ag-total" role="status"></span>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
 {{end}}
@@ -85,6 +90,9 @@
   <div class="skel-line w75"></div>
 </div>
 {{end}}
+
+
+
 
 {{define "dash_error"}}
 <div class="dash-error {{.Kind}}">
@@ -152,7 +160,7 @@
   </div>
   <div class="hero-tiles">
     <div class="dash-tile">
-      <span class="tile-label">Niveau{{if .CursusName}} — {{.CursusName}}{{end}}</span>
+      <span class="tile-label">Niveau{{if .CursusName}} - {{.CursusName}}{{end}}</span>
       <span class="tile-value">{{.Level}}</span>
       <div class="level-bar"><div class="level-fill" style="width: {{.LevelPct}}%"></div></div>
     </div>
@@ -197,7 +205,7 @@
 {{define "dash_coalition"}}
 <div class="dash-head"><h2 class="dash-title">Coalition</h2></div>
 {{if .Empty}}
-<p class="dash-empty">Pas encore de coalition — elle arrive en général quelques jours après le début de la piscine.</p>
+<p class="dash-empty">Pas encore de coalition - elle arrive en général quelques jours après le début de la piscine.</p>
 {{else}}
 <div class="coa-wrap">
   <span class="coa-swatch" style="background: {{.Color}}"></span>
@@ -212,7 +220,7 @@
 {{end}}
 
 {{define "dash_projects"}}
-<div class="dash-head"><h2 class="dash-title">Projets — {{.CursusName}}</h2></div>
+<div class="dash-head"><h2 class="dash-title">Projets - {{.CursusName}}</h2></div>
 {{if .Rows}}
 <div class="proj-summary">
   <svg class="donut" viewBox="0 0 36 36" role="img" aria-label="Répartition des projets">
@@ -242,7 +250,7 @@
 {{end}}
 
 {{define "dash_skills"}}
-<div class="dash-head"><h2 class="dash-title">Compétences{{if .CursusName}} — {{.CursusName}}{{end}}</h2></div>
+<div class="dash-head"><h2 class="dash-title">Compétences{{if .CursusName}} - {{.CursusName}}{{end}}</h2></div>
 {{if .Skills}}
 <ul class="skill-list">
   {{range .Skills}}
@@ -254,7 +262,7 @@
   {{end}}
 </ul>
 {{else}}
-<p class="dash-empty">Pas encore de compétences mesurées — elles montent avec les projets validés.</p>
+<p class="dash-empty">Pas encore de compétences mesurées - elles montent avec les projets validés.</p>
 {{end}}
 {{end}}
 
@@ -328,59 +336,51 @@
 {{else if .Note}}
 <p class="dash-empty">{{.Note}}</p>
 {{else}}
-<p class="dash-empty">Aucun mouvement de points pour l'instant — ils bougent à chaque évaluation.</p>
+<p class="dash-empty">Aucun mouvement de points pour l'instant - ils bougent à chaque évaluation.</p>
 {{end}}
 {{end}}
 
-{{define "dash_promo"}}
+{{define "dash_top5"}}
 <div class="dash-head">
-  <h2 class="dash-title">Classement promo</h2>
-  {{if .Coalition}}<span class="dash-badge">{{.Coalition}}</span>{{end}}
+  <h2 class="dash-title">Classement coalition</h2>
+  {{if .Coalition}}<span class="dash-badge"><span class="coa-dot" style="background: {{.Color}}"></span>{{.Coalition}}</span>{{end}}
 </div>
-{{if .Unavailable}}
-<p class="dash-empty">{{.Reason}}</p>
-{{else}}
-{{if .InRoster}}
-<div class="coa-tiles">
-  <div class="dash-tile"><span class="tile-label">Rang sur {{.Total}}</span><span class="tile-value">{{.Rank}}</span></div>
-  <div class="dash-tile"><span class="tile-label">Score</span><span class="tile-value">{{.Score}}</span></div>
-  <div class="dash-tile"><span class="tile-label">Niveau</span><span class="tile-value">{{.Level}}</span></div>
-</div>
-{{if .Ahead}}<p class="dash-foot">{{.Ahead}}</p>{{end}}
+{{if .Empty}}
+<p class="dash-empty">Pas encore de coalition : le classement apparaîtra quand tu en auras une.</p>
+{{else if .Note}}
+<p class="dash-empty">{{.Note}}</p>
 {{else}}
 <ul class="promo-podium">
-  {{range .Podium}}
-  <li><span class="promo-medal">{{.Medal}}</span><span class="promo-login">{{.Login}}</span><span class="proj-mark">{{.Score}}</span></li>
+  {{range .Rows}}
+  <li{{if .Me}} class="me"{{end}}>
+    <span class="top5-rank">{{.Rank}}</span>
+    {{if .WhoURL}}<a class="promo-login" href="{{.WhoURL}}" target="_blank" rel="noopener">{{.Login}}{{if .Me}} (toi){{end}}</a>{{else}}<span class="promo-login">{{.Login}}</span>{{end}}
+    <span class="proj-mark">{{.Score}}</span>
+  </li>
   {{end}}
 </ul>
-<p class="dash-foot">Tu n'apparais pas dans le roster de cette session.</p>
-{{end}}
-<a class="dash-link" href="/classement">Voir le classement complet →</a>
+{{if .MyRank}}<p class="dash-foot">Toi : {{.MyRank}} de la coalition · {{.MyScore}} pts</p>{{end}}
 {{end}}
 {{end}}
 
 {{define "dash_exam"}}
 <div class="dash-head">
-  <h2 class="dash-title">Exams</h2>
-  {{if .Available}}
-    {{if eq .State "active"}}<span class="dash-badge online">En cours</span>
-    {{else if eq .State "upcoming"}}<span class="dash-badge accent">À venir</span>
-    {{else}}<span class="dash-badge muted">Terminés</span>{{end}}
+  <h2 class="dash-title">Exam</h2>
+  {{if .Registered}}
+    {{if .Active}}<span class="dash-badge online">En cours</span>{{else}}<span class="dash-badge accent">Inscrit ✓</span>{{end}}
   {{end}}
 </div>
-{{if not .Available}}
-<p class="dash-empty">Horaire des exams indisponible pour l'instant.</p>
+{{if not .Registered}}
+<p class="dash-empty">Tu n'es inscrit à aucun exam à venir. L'inscription se fait sur l'intra, comme pour un événement.</p>
 {{else}}
 <div class="exam-focus">
-  <span class="exam-label">{{.Label}}</span>
+  <span class="exam-label">{{.Name}}</span>
   <span class="exam-countdown">{{.Countdown}}</span>
-  <span class="exam-when">{{.Date}} · {{.Hours}}</span>
+  <span class="exam-when">{{.When}}{{if .Location}} · {{.Location}}{{end}}</span>
 </div>
-{{if .Windows}}
+{{if .Others}}
 <ul class="exam-windows">
-  {{range .Windows}}
-  <li><span class="promo-login">{{.Label}}</span><span class="points-date">{{.Date}} · {{.Start}} → {{.End}}</span></li>
-  {{end}}
+  {{range .Others}}<li><span class="points-date">{{.}}</span></li>{{end}}
 </ul>
 {{end}}
 {{end}}
@@ -402,7 +402,7 @@
 </div>
 {{if .More}}<p class="dash-foot">+ {{.More}} autres succès</p>{{end}}
 {{else}}
-<p class="dash-empty">Aucun succès pour l'instant — le premier tombe vite.</p>
+<p class="dash-empty">Aucun succès pour l'instant - le premier tombe vite.</p>
 {{end}}
 {{end}}
 
@@ -472,9 +472,9 @@
 {{end}}
 
 {{define "dash_lookup"}}
-<div class="dash-head"><h2 class="dash-title">Chercher un pisciner</h2></div>
+<div class="dash-head"><h2 class="dash-title">Chercher un student</h2></div>
 <form class="lookup-form" hx-get="/ui/user" hx-target="#lookup-result" hx-swap="innerHTML" hx-indicator="#lookup-spin">
-  <input type="text" name="login" class="git-input lookup-input" placeholder="login intra (ex. kyfontan)" autocomplete="off" required>
+  <input type="text" name="login" class="git-input lookup-input" placeholder="login intra d'un student (ex. kyfontan)" autocomplete="off" required>
   <button type="submit" class="dash-retry">Chercher</button>
   <span id="lookup-spin" class="htmx-indicator spinner"></span>
 </form>

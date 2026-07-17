@@ -28,17 +28,32 @@ type ExerciseSpec struct {
 	SourceFile       string     `yaml:"source_file"`
 	ExtraSources     []string   `yaml:"extra_sources"`
 	Harness          string     `yaml:"harness"`
+	HarnessFiles     []string   `yaml:"harness_files"`
+	NormExtraRules   []string   `yaml:"norm_extra_rules"`
 	AllowedFunctions []string   `yaml:"allowed_functions"`
 	CheckLeaks       bool       `yaml:"check_leaks"`
+	CompileOnly      bool       `yaml:"compile_only"`
 	Tests            []TestCase `yaml:"tests"`
+
+	BuildMode    string `yaml:"build_mode"`
+	BuildScript  string `yaml:"build_script"`
+	ProvidedTree string `yaml:"provided_tree"`
+
+	ExpectArtifacts    []string `yaml:"expect_artifacts"`
+	ArchiveSymbols     []string `yaml:"archive_symbols"`
+	MakeTargets        []string `yaml:"make_targets"`
+	CheckNoRebuild     bool     `yaml:"check_no_rebuild"`
+	LinkHarness        string   `yaml:"link_harness"`
+	LinkHarnessInclude string   `yaml:"link_harness_include"`
 }
 
 type ProjectDef struct {
-	Project        string         `yaml:"project"`
-	DisplayName    string         `yaml:"display_name"`
-	NormExtraRules []string       `yaml:"norm_extra_rules"` // règles -R additionnelles pour norminette
-	Points         []int          `yaml:"points"`           // Points[k-1] = score si les k premiers exercices passent d'affilée
-	Exercises      []ExerciseSpec `yaml:"exercises"`
+	Project           string         `yaml:"project"`
+	DisplayName       string         `yaml:"display_name"`
+	NormExtraRules    []string       `yaml:"norm_extra_rules"` // règles -R additionnelles pour norminette (défaut projet)
+	Points            []int          `yaml:"points"`           // Points[k-1] = score si les k premiers exercices passent d'affilée
+	RequiredExercises int            `yaml:"required_exercises"`
+	Exercises         []ExerciseSpec `yaml:"exercises"`
 }
 
 // ExerciseOption est l'entrée affichée dans la grille : un bouton par projet.

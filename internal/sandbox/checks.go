@@ -110,6 +110,10 @@ func checkForbiddenFunctions(exDir string, sourceFiles []string, allowed []strin
 	undefined := make(map[string]bool)
 
 	for i, sourceFile := range sourceFiles {
+		if !strings.HasSuffix(sourceFile, ".c") {
+			continue
+		}
+
 		objName := fmt.Sprintf("_check_%d.o", i)
 		compileArgs := []string{
 			"run", "--rm",

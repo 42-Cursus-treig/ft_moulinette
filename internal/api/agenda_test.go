@@ -364,7 +364,7 @@ func TestParseWeek(t *testing.T) {
 }
 
 func TestBuildAgendaGreys(t *testing.T) {
-	week := time.Date(2026, 7, 13, 0, 0, 0, 0, time.Local) // lundi
+	week := time.Date(2026, 7, 13, 0, 0, 0, 0, time.Local)  // lundi
 	now := time.Date(2026, 7, 15, 11, 44, 0, 0, time.Local) // mercredi 11:44
 	v := buildAgenda(nil, week, now)
 
@@ -441,8 +441,8 @@ func TestDaysApart(t *testing.T) {
 		want int
 	}{
 		{base, 0},
-		{base.Add(10 * time.Hour), 0},                              // même jour calendaire
-		{time.Date(2026, 7, 16, 1, 0, 0, 0, time.Local), 1},        // lendemain, < 24 h d'écart
+		{base.Add(10 * time.Hour), 0}, // même jour calendaire
+		{time.Date(2026, 7, 16, 1, 0, 0, 0, time.Local), 1}, // lendemain, < 24 h d'écart
 		{base.AddDate(0, 0, -1), -1},
 		{base.AddDate(0, 0, 6), 6},
 	}

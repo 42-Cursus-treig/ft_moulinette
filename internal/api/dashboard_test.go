@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -80,7 +81,11 @@ func newMock42(t *testing.T) *mock42 {
 	serve("/v2/users/1/events", mockEventsJSON())
 	serve("/v2/me/scale_teams", mockMeScaleTeamsJSON())
 	serve("/v2/projects/1318", `{"id": 1318, "name": "C Piscine Rush 00"}`)
-	serve("/v2/users/carol", `{
+	serve("/v2/coalitions/377/coalitions_users", `[
+	  {"id": 9001, "coalition_id": 377, "user_id": 1, "score": 512, "rank": 1},
+	  {"id": 9002, "coalition_id": 377, "user_id": 7, "score": 400, "rank": 2}
+	]`)
+	carolJSON := `{
 	  "id": 7, "login": "carol", "displayname": "Carol Danvers",
 	  "correction_point": 3, "wallet": 10, "pool_month": "july", "pool_year": "2026",
 	  "image": {"link": "", "versions": {"medium": ""}},
@@ -93,7 +98,9 @@ func newMock42(t *testing.T) *mock42 {
 	     "created_at": "2026-07-08T08:00:00.000Z", "project": {"name": "C 01", "slug": "c-01"}}
 	  ],
 	  "achievements": [], "titles": [], "titles_users": []
-	}`)
+	}`
+	serve("/v2/users/carol", carolJSON)
+	serve("/v2/users/7", carolJSON) // le top 5 lit les profils par id numérique
 	mux.HandleFunc("GET /v2/me/slots", func(w http.ResponseWriter, r *http.Request) {
 		m.slotHits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
@@ -120,7 +127,7 @@ func newMock42(t *testing.T) *mock42 {
 	return m
 }
 
-// mockMeScaleTeamsJSON : deux défenses où l'utilisateur corrige — une
+// mockMeScaleTeamsJSON : deux défenses où l'utilisateur corrige - une
 // imminente au corrigé révélé, une lointaine encore « invisible ».
 func mockMeScaleTeamsJSON() string {
 	now := time.Now()
@@ -214,10 +221,13 @@ func mockEventsJSON() string {
 	now := time.Now()
 	return fmt.Sprintf(`[
 	  {"name": "Meetup Piscine", "kind": "meet_up", "location": "Amphi", "begin_at": "%s", "end_at": "%s"},
+	  {"name": "Exam 02", "kind": "exam", "location": "Cluster 1", "begin_at": "%s", "end_at": "%s"},
 	  {"name": "Vieille conf", "kind": "conference", "location": "Zoom", "begin_at": "%s", "end_at": "%s"}
 	]`,
 		now.Add(48*time.Hour).UTC().Format(time.RFC3339),
 		now.Add(50*time.Hour).UTC().Format(time.RFC3339),
+		now.Add(72*time.Hour).UTC().Format(time.RFC3339),
+		now.Add(76*time.Hour).UTC().Format(time.RFC3339),
 		now.Add(-72*time.Hour).UTC().Format(time.RFC3339),
 		now.Add(-70*time.Hour).UTC().Format(time.RFC3339))
 }
@@ -232,6 +242,10 @@ func newDashHandlers(t *testing.T, apiBase string) (*handlers, *http.ServeMux) {
 	}
 	ft := fortytwo.New(apiBase)
 	ft.SetMinInterval(0)
+	layouts, err := newLayoutStore(filepath.Join(t.TempDir(), "layouts.json"))
+	if err != nil {
+		t.Fatalf("store de dispositions : %v", err)
+	}
 	h := &handlers{
 		tmpl:        tmpl,
 		sessions:    auth.NewStore(),
@@ -239,6 +253,7 @@ func newDashHandlers(t *testing.T, apiBase string) (*handlers, *http.ServeMux) {
 		adminLogins: map[string]bool{},
 		ft:          ft,
 		icsSnap:     newICSStore(),
+		layouts:     layouts,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /dashboard", h.requireAuth(h.dashboardPage))
@@ -326,14 +341,17 @@ func TestDashboardCards(t *testing.T) {
 		{"evals", []string{"bob", "84", "anonyme", "planifiée", "carol", "Bon boulot"}},
 		{"points", []string{"5 pts", "polyline", "Défense planifiée", "-1"}},
 		{"achievements", []string{"All Star", "Challenge", "3 débloqués"}},
-		{"events", []string{"Meetup Piscine", "Meetup", "Amphi", "2 inscriptions"}},
-		// Sans service pool (tests), les cartes locales dégradent proprement.
-		{"promo", []string{"Service de classement inactif"}},
-		{"exam", []string{"Horaire des exams indisponible"}},
+		{"events", []string{"Meetup Piscine", "Meetup", "Amphi", "3 inscriptions"}},
+		// Top 5 de la coalition : alice (connectée) en tête, carol via son profil.
+		{"top5", []string{"Classement coalition", "Les Gordons", "alice (toi)", "#2",
+			"profile.intra.42.fr/users/carol", "512"}},
+		// Exam : inscription réelle de l'utilisateur, pas l'horaire piscine.
+		{"exam", []string{"Exam 02", "Inscrit ✓", "Cluster 1", "dans"}},
+		// Sans service pool (tests), la progression dégrade proprement.
 		{"progress", []string{"Service de classement inactif"}},
 		// Sans queue (tests), la carte prêt-à-rendre se déclare inactive.
 		{"ready", []string{"Moulinette inactive."}},
-		{"lookup", []string{"Chercher un pisciner", `name="login"`, "/ui/user"}},
+		{"lookup", []string{"Chercher un student", `name="login"`, "/ui/user"}},
 		{"defenses", []string{"C Piscine Rush 00", "Je corrige", "profile.intra.42.fr/users/carol",
 			"révélé ~15 min avant", "On me corrige", "Gérer mes créneaux", "def-row soon", "data-def-id"}},
 	}
@@ -455,7 +473,7 @@ func newScope403Mock(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// TestDashboardScopeInterdit : un 403 de scope est définitif — le panneau
+// TestDashboardScopeInterdit : un 403 de scope est définitif - le panneau
 // prend la forme « cadenas », sans bouton Réessayer qui ne servirait à rien.
 func TestDashboardScopeInterdit(t *testing.T) {
 	srv := newScope403Mock(t)
@@ -474,7 +492,7 @@ func TestDashboardScopeInterdit(t *testing.T) {
 }
 
 // TestDashboardPointsSansHistorique : l'historique en 403 ne condamne pas la
-// carte — le solde (issu de /v2/me) reste affiché avec une note.
+// carte - le solde (issu de /v2/me) reste affiché avec une note.
 func TestDashboardPointsSansHistorique(t *testing.T) {
 	srv := newScope403Mock(t)
 	defer srv.Close()
