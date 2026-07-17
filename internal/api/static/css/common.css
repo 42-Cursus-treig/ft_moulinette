@@ -364,6 +364,20 @@ pre {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Champ texte brutalist partagé (formulaires index + carte recherche du dashboard). */
+.git-input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 3px solid var(--border);
+  box-shadow: 5px 5px 0px var(--border);
+  margin-bottom: 1rem;
+}
+.git-input:disabled { cursor: not-allowed; }
+
 @media (max-width: 640px) {
   body {
     padding: 1.2rem 0.9rem 3rem;
