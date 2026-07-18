@@ -42,8 +42,11 @@ func TestPageTemplatesVisibility(t *testing.T) {
 	if !strings.Contains(out, `href="/classement"`) {
 		t.Errorf("page disabled : lien classement attendu (section visible)")
 	}
-	if !strings.Contains(out, `href="/dashboard"`) {
-		t.Errorf("page disabled : le badge de login doit mener au dashboard")
+	if strings.Contains(out, `href="/dashboard"`) || strings.Contains(out, `href="/agenda"`) {
+		t.Errorf("page disabled : dashboard/agenda ont été déplacés dans ft_intra, plus de lien ici")
+	}
+	if !strings.Contains(out, `class="user-badge">alice`) {
+		t.Errorf("page disabled : badge de login attendu")
 	}
 	if strings.Contains(out, `href="/history"`) {
 		t.Errorf("page disabled : lien historique présent alors que masqué")

@@ -144,17 +144,12 @@ func main() {
 	if poolHistoryPath == "" {
 		poolHistoryPath = "data/pool_history.json"
 	}
-	layoutsPath := os.Getenv("MOULINETTE_LAYOUTS_FILE")
-	if layoutsPath == "" {
-		layoutsPath = "data/dashboard_layouts.json"
-	}
-
 	poolService := pool.NewService(clientID, clientSecret, campusName, poolCachePath, poolHistoryPath)
 	// Rafraîchit Score/Projets côté serveur en continu, sinon les classements
 	// ne se mettent à jour que quand un navigateur a la page ouverte.
 	poolService.StartRefreshLoop()
 
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, layoutsPath, maintenance)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, maintenance)
 	if err != nil {
 		log.Fatal(err)
 	}

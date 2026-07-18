@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
-	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
@@ -13,15 +12,10 @@ import (
 
 // NewRouter câble les routes de l'interface web et de l'API JSON sur
 // un même mux. Toutes les routes hors /auth exigent une session 42.
-func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *auth.Store, serverBootID string, locksStore *locks.Store, adminLogins map[string]bool, poolSvc *pool.Service, layoutsPath string, maintenance bool) (http.Handler, error) {
+func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *auth.Store, serverBootID string, locksStore *locks.Store, adminLogins map[string]bool, poolSvc *pool.Service, maintenance bool) (http.Handler, error) {
 	tmpl, err := loadTemplates()
 	if err != nil {
 		return nil, fmt.Errorf("chargement des templates: %w", err)
-	}
-
-	layouts, err := newLayoutStore(layoutsPath)
-	if err != nil {
-		return nil, fmt.Errorf("chargement des dispositions dashboard: %w", err)
 	}
 
 	static, err := staticHandler()
@@ -40,9 +34,6 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 		locks:        locksStore,
 		adminLogins:  adminLogins,
 		pool:         poolSvc,
-		ft:           fortytwo.New(oauth.APIBaseURL()),
-		icsSnap:      newICSStore(),
-		layouts:      layouts,
 		maintenance:  maintenance,
 	}
 
@@ -51,18 +42,6 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.HandleFunc("GET /auth/login", h.authLogin)
 	mux.HandleFunc("GET /auth/callback", h.authCallback)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
-
-	// Dashboard
-	mux.HandleFunc("GET /dashboard", h.requireNotMaintenancePage(h.dashboardPage))
-	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireNotMaintenanceFragment(h.dashboardCard))
-	mux.HandleFunc("POST /ui/dashboard/layout", h.requireNotMaintenanceAPI(h.saveLayout))
-
-	// Agenda
-	mux.HandleFunc("GET /agenda", h.requireNotMaintenancePage(h.agendaPage))
-	mux.HandleFunc("GET /ui/slots", h.requireNotMaintenanceFragment(h.slotsCalendar))
-	mux.HandleFunc("POST /ui/slots/sync", h.requireNotMaintenanceFragment(h.slotsSync))
-	mux.HandleFunc("GET /ui/slots/copy", h.requireNotMaintenanceFragment(h.slotsCopyWeek))
-	mux.HandleFunc("GET /ui/user", h.requireNotMaintenanceFragment(h.userCard))
 
 	// Interface web (htmx). L'accès des membres non-admins à chaque section
 	// est bloqué et renvoie vers la page "disabled.html".
