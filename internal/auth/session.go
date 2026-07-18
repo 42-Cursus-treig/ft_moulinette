@@ -41,12 +41,22 @@ type tokenBox struct {
 
 // Store est un annuaire de sessions en mémoire.
 type Store struct {
-	mu       sync.RWMutex
-	sessions map[string]session
+	mu           sync.RWMutex
+	sessions     map[string]session
+	secret       []byte // signe le cookie d'identité partagé ; vide = désactivé
+	cookieDomain string // ex. ".ft-moulinette.fr" ; vide = host-only (dev)
 }
 
 func NewStore() *Store {
 	return &Store{sessions: make(map[string]session)}
+}
+
+// UseIdentity active le cookie d'identité signé partagé entre sous-domaines.
+// secret sert à la signature HMAC ; cookieDomain rend le cookie visible sur
+// tous les sous-domaines (vide en localhost pour le dev mono-service).
+func (s *Store) UseIdentity(secret []byte, cookieDomain string) {
+	s.secret = secret
+	s.cookieDomain = cookieDomain
 }
 
 // Create ouvre une session, y attache le token 42 de l'utilisateur et pose
@@ -57,10 +67,11 @@ func (s *Store) Create(w http.ResponseWriter, user User, tok Token) error {
 		return err
 	}
 
+	expiresAt := time.Now().Add(sessionTTL)
 	s.mu.Lock()
 	s.sessions[token] = session{
 		user:      user,
-		expiresAt: time.Now().Add(sessionTTL),
+		expiresAt: expiresAt,
 		token:     &tokenBox{tok: tok},
 	}
 	s.mu.Unlock()
@@ -69,28 +80,46 @@ func (s *Store) Create(w http.ResponseWriter, user User, tok Token) error {
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/",
+		Domain:   s.cookieDomain,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(sessionTTL),
+		Expires:  expiresAt,
 	})
+	// Cookie d'identité signé, partagé avec les autres services du split.
+	if len(s.secret) > 0 {
+		http.SetCookie(w, &http.Cookie{
+			Name:     identityCookie,
+			Value:    signIdentity(user, expiresAt, s.secret),
+			Path:     "/",
+			Domain:   s.cookieDomain,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Expires:  expiresAt,
+		})
+	}
 	return nil
 }
 
-// FromRequest renvoie l'utilisateur du cookie de session s'il est valide et non expiré.
+// FromRequest renvoie l'utilisateur de la requête. On essaie d'abord la session
+// locale en mémoire (riche : porte le token 42) ; à défaut — cas d'un cookie
+// émis par l'autre service du split — on valide le cookie d'identité signé.
 func (s *Store) FromRequest(r *http.Request) (User, bool) {
-	cookie, err := r.Cookie(sessionCookie)
-	if err != nil {
-		return User{}, false
+	if cookie, err := r.Cookie(sessionCookie); err == nil {
+		s.mu.RLock()
+		sess, ok := s.sessions[cookie.Value]
+		s.mu.RUnlock()
+		if ok && time.Now().Before(sess.expiresAt) {
+			return sess.user, true
+		}
 	}
-
-	s.mu.RLock()
-	sess, ok := s.sessions[cookie.Value]
-	s.mu.RUnlock()
-
-	if !ok || time.Now().After(sess.expiresAt) {
-		return User{}, false
+	if len(s.secret) > 0 {
+		if cookie, err := r.Cookie(identityCookie); err == nil {
+			if user, ok := verifyIdentity(cookie.Value, s.secret); ok {
+				return user, true
+			}
+		}
 	}
-	return sess.user, true
+	return User{}, false
 }
 
 // FreshToken renvoie un access token 42 utilisable pour la session de r, en
@@ -137,6 +166,15 @@ func (s *Store) Destroy(w http.ResponseWriter, r *http.Request) {
 		Name:     sessionCookie,
 		Value:    "",
 		Path:     "/",
+		Domain:   s.cookieDomain,
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     identityCookie,
+		Value:    "",
+		Path:     "/",
+		Domain:   s.cookieDomain,
 		HttpOnly: true,
 		MaxAge:   -1,
 	})

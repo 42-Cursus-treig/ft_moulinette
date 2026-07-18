@@ -93,13 +93,25 @@ func (h *handlers) authLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
+// loginURL est la cible de redirection d'un visiteur non connecté. En prod
+// (split), on la pointe vers la racine ft_intra qui porte le flux OAuth 42
+// (MOULINETTE_LOGIN_URL) ; en dev mono-service, elle reste "/login" (local).
+var loginURL = "/login"
+
+// SetLoginURL configure la cible de redirection de login.
+func SetLoginURL(u string) {
+	if u != "" {
+		loginURL = u
+	}
+}
+
 // requireAuth protège les pages web : redirige vers l'écran d'accueil /login
 // si non connecté, où l'utilisateur choisit lui-même de lancer le flux OAuth.
 func (h *handlers) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := h.sessions.FromRequest(r)
 		if !ok {
-			http.Redirect(w, r, "/login", http.StatusFound)
+			http.Redirect(w, r, loginURL, http.StatusFound)
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))
@@ -114,7 +126,7 @@ func (h *handlers) requireAuthFragment(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := h.sessions.FromRequest(r)
 		if !ok {
-			w.Header().Set("HX-Redirect", "/login")
+			w.Header().Set("HX-Redirect", loginURL)
 			w.WriteHeader(http.StatusOK)
 			return
 		}

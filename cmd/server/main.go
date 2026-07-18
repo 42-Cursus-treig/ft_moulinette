@@ -105,6 +105,19 @@ func main() {
 		BaseURL: os.Getenv("MOULINETTE_42_BASE_URL"),
 	}
 	sessions := auth.NewStore()
+	// Cookie d'identité signé, partagé avec ft_intra sur .ft-moulinette.fr : un
+	// user connecté sur la racine (ft_intra) est reconnu ici sans re-login.
+	// Sans secret : mode mono-service (dev), login OAuth local classique.
+	if secret := os.Getenv("MOULINETTE_SESSION_SECRET"); secret != "" {
+		sessions.UseIdentity([]byte(secret), os.Getenv("MOULINETTE_COOKIE_DOMAIN"))
+	} else {
+		log.Println("MOULINETTE_SESSION_SECRET absent : SSO inter-services désactivé (dev mono-service)")
+	}
+	// En prod, le login se fait sur la racine ft_intra : on y renvoie les
+	// visiteurs non connectés (ex. https://ft-moulinette.fr/login).
+	if loginURL := os.Getenv("MOULINETTE_LOGIN_URL"); loginURL != "" {
+		api.SetLoginURL(loginURL)
+	}
 
 	hist, err := history.New(historyDir)
 	if err != nil {
