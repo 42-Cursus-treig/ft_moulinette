@@ -71,6 +71,11 @@ func main() {
 		}
 	}
 
+	maintenance := os.Getenv("MOULINETTE_MAINTENANCE") == "true"
+	if maintenance {
+		log.Println("MODE MAINTENANCE actif : seuls les admins ont accès")
+	}
+
 	clientID := os.Getenv("MOULINETTE_42_CLIENT_ID")
 	clientSecret := os.Getenv("MOULINETTE_42_CLIENT_SECRET")
 	redirectURL := os.Getenv("MOULINETTE_42_REDIRECT_URL")
@@ -149,7 +154,7 @@ func main() {
 	// ne se mettent à jour que quand un navigateur a la page ouverte.
 	poolService.StartRefreshLoop()
 
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, layoutsPath)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, layoutsPath, maintenance)
 	if err != nil {
 		log.Fatal(err)
 	}

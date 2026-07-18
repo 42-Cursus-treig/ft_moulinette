@@ -50,8 +50,50 @@ func (h *handlers) renderSectionDisabled(w http.ResponseWriter, user auth.User) 
 	data := h.navFlags(user)
 	data["User"] = user
 	data["Page"] = ""
-	w.WriteHeader(http.StatusForbidden)
+	data["Maintenance"] = h.maintenance
+	if h.maintenance {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	} else {
+		w.WriteHeader(http.StatusForbidden)
+	}
 	if err := h.tmpl.ExecuteTemplate(w, "disabled", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// requireNotMaintenancePage protège une PAGE qui n'est pas gérée par section
+// (dashboard, agenda) : admin passe toujours, membre voit la page "disabled".
+func (h *handlers) requireNotMaintenancePage(next http.HandlerFunc) http.HandlerFunc {
+	return h.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		user, _ := userFromContext(r.Context())
+		if !h.maintenance || h.isAdmin(user) {
+			next(w, r)
+			return
+		}
+		h.renderSectionDisabled(w, user)
+	})
+}
+
+// requireNotMaintenanceFragment : fragment htmx bloqué => 503.
+func (h *handlers) requireNotMaintenanceFragment(next http.HandlerFunc) http.HandlerFunc {
+	return h.requireAuthFragment(func(w http.ResponseWriter, r *http.Request) {
+		user, _ := userFromContext(r.Context())
+		if !h.maintenance || h.isAdmin(user) {
+			next(w, r)
+			return
+		}
+		http.Error(w, "maintenance en cours", http.StatusServiceUnavailable)
+	})
+}
+
+// requireNotMaintenanceAPI : API JSON bloquée => 503.
+func (h *handlers) requireNotMaintenanceAPI(next http.HandlerFunc) http.HandlerFunc {
+	return h.requireAuthAPI(func(w http.ResponseWriter, r *http.Request) {
+		user, _ := userFromContext(r.Context())
+		if !h.maintenance || h.isAdmin(user) {
+			next(w, r)
+			return
+		}
+		http.Error(w, `{"error":"maintenance en cours"}`, http.StatusServiceUnavailable)
+	})
 }

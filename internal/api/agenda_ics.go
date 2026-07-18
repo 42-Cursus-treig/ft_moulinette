@@ -113,6 +113,11 @@ var icsLoginRe = regexp.MustCompile(`^[a-z0-9_-]{2,20}$`)
 // agendaICS (GET /agenda.ics?login=X&k=SIG) sert le calendrier iCalendar.
 // Public (pas de session) : la signature HMAC fait office d'authentification.
 func (h *handlers) agendaICS(w http.ResponseWriter, r *http.Request) {
+	if h.maintenance {
+		http.Error(w, "maintenance en cours", http.StatusServiceUnavailable)
+		return
+	}
+
 	login := r.FormValue("login")
 	key := r.FormValue("k")
 	if !icsLoginRe.MatchString(login) || !hmac.Equal([]byte(key), []byte(icsKey(h.oauth.ClientSecret, login))) {

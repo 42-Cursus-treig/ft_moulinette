@@ -19,8 +19,13 @@
   {{template "exam_banner" .}}
 
   <div class="ranking-state ranking-unavailable brutal-card">
+    {{if .Maintenance}}
+    <p class="ranking-unavailable-title">Maintenance en cours</p>
+    <p>ft_moulinette est temporairement indisponible, on revient très vite.</p>
+    {{else}}
     <p class="ranking-unavailable-title">Section désactivée</p>
     <p>Cette section n'est pas accessible pour le moment.</p>
+    {{end}}
   </div>
 </body>
 </html>

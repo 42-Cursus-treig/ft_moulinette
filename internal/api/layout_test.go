@@ -130,7 +130,7 @@ func TestSaveLayoutEtRendu(t *testing.T) {
 // donnerait 404).
 func TestRouterLayoutRoute(t *testing.T) {
 	router, err := NewRouter(nil, "tests", auth.Config{ClientID: "cid", ClientSecret: "sec"}, auth.NewStore(), "boot", nil, map[string]bool{}, nil,
-		filepath.Join(t.TempDir(), "layouts.json"))
+		filepath.Join(t.TempDir(), "layouts.json"), false)
 	if err != nil {
 		t.Fatalf("NewRouter : %v", err)
 	}

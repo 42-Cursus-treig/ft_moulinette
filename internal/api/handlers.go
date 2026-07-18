@@ -34,6 +34,7 @@ type handlers struct {
 	ft           *fortytwo.Client
 	icsSnap      *icsStore
 	layouts      *layoutStore
+	maintenance  bool
 }
 
 func (h *handlers) isAdmin(user auth.User) bool {
@@ -41,12 +42,18 @@ func (h *handlers) isAdmin(user auth.User) bool {
 }
 
 // sectionVisible indique si un utilisateur a accès à une section.
-// Le paramètre de section est ignoré car l'accès est maintenant global pour les admins.
+// En mode maintenance, seuls les admins passent (toutes sections confondues).
 func (h *handlers) sectionVisible(user auth.User, section string) bool {
+	if h.isAdmin(user) {
+		return true
+	}
+	if h.maintenance {
+		return false
+	}
 	if section == SectionClassement {
 		return true
 	}
-	return h.isAdmin(user)
+	return false
 }
 
 // navFlags renvoie les drapeaux de navigation (sections accessibles pour cet

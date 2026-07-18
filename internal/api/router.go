@@ -13,7 +13,7 @@ import (
 
 // NewRouter câble les routes de l'interface web et de l'API JSON sur
 // un même mux. Toutes les routes hors /auth exigent une session 42.
-func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *auth.Store, serverBootID string, locksStore *locks.Store, adminLogins map[string]bool, poolSvc *pool.Service, layoutsPath string) (http.Handler, error) {
+func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *auth.Store, serverBootID string, locksStore *locks.Store, adminLogins map[string]bool, poolSvc *pool.Service, layoutsPath string, maintenance bool) (http.Handler, error) {
 	tmpl, err := loadTemplates()
 	if err != nil {
 		return nil, fmt.Errorf("chargement des templates: %w", err)
@@ -43,6 +43,7 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 		ft:           fortytwo.New(oauth.APIBaseURL()),
 		icsSnap:      newICSStore(),
 		layouts:      layouts,
+		maintenance:  maintenance,
 	}
 
 	// Connexion : jamais protégées, sinon impossible de se connecter.
@@ -51,22 +52,17 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.HandleFunc("GET /auth/callback", h.authCallback)
 	mux.HandleFunc("POST /auth/logout", h.authLogout)
 
-	// Dashboard : données personnelles du compte 42 connecté, ouvert à tous
-	// les membres (pas de gating par section). Les cartes se chargent en htmx.
-	mux.HandleFunc("GET /dashboard", h.requireAuth(h.dashboardPage))
-	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireAuthFragment(h.dashboardCard))
-	mux.HandleFunc("POST /ui/dashboard/layout", h.requireAuthAPI(h.saveLayout))
+	// Dashboard
+	mux.HandleFunc("GET /dashboard", h.requireNotMaintenancePage(h.dashboardPage))
+	mux.HandleFunc("GET /ui/dashboard/{card}", h.requireNotMaintenanceFragment(h.dashboardCard))
+	mux.HandleFunc("POST /ui/dashboard/layout", h.requireNotMaintenanceAPI(h.saveLayout))
 
-	// Agenda des créneaux de correction : lecture + enregistrement par lot.
-	mux.HandleFunc("GET /agenda", h.requireAuth(h.agendaPage))
-	mux.HandleFunc("GET /ui/slots", h.requireAuthFragment(h.slotsCalendar))
-	mux.HandleFunc("POST /ui/slots/sync", h.requireAuthFragment(h.slotsSync))
-	mux.HandleFunc("GET /ui/slots/copy", h.requireAuthFragment(h.slotsCopyWeek))
-	// Export iCalendar : public, authentifié par la signature HMAC de l'URL
-	// (les applis calendrier ne portent pas de cookie de session).
-	mux.HandleFunc("GET /agenda.ics", h.agendaICS)
-	// Fiche publique d'un autre étudiant (recherche depuis le dashboard).
-	mux.HandleFunc("GET /ui/user", h.requireAuthFragment(h.userCard))
+	// Agenda
+	mux.HandleFunc("GET /agenda", h.requireNotMaintenancePage(h.agendaPage))
+	mux.HandleFunc("GET /ui/slots", h.requireNotMaintenanceFragment(h.slotsCalendar))
+	mux.HandleFunc("POST /ui/slots/sync", h.requireNotMaintenanceFragment(h.slotsSync))
+	mux.HandleFunc("GET /ui/slots/copy", h.requireNotMaintenanceFragment(h.slotsCopyWeek))
+	mux.HandleFunc("GET /ui/user", h.requireNotMaintenanceFragment(h.userCard))
 
 	// Interface web (htmx). L'accès des membres non-admins à chaque section
 	// est bloqué et renvoie vers la page "disabled.html".
@@ -78,9 +74,8 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 	mux.HandleFunc("POST /ui/jobs", h.requireSectionFragment(SectionMoulinette, h.submitJobUI))
 	mux.HandleFunc("GET /ui/jobs/{id}", h.requireSectionFragment(SectionMoulinette, h.jobStatusUI))
 
-	// Pas de gating par section : flush de l'historique, action de
-	// "ménage" indépendante de la visibilité d'une section particulière.
-	mux.HandleFunc("POST /ui/session/close", h.requireAuthAPI(h.closeSession))
+	// Flush de l'historique
+	mux.HandleFunc("POST /ui/session/close", h.requireNotMaintenanceAPI(h.closeSession))
 
 	// Administration.
 	mux.HandleFunc("GET /admin", h.requireAdmin(h.adminPage))
