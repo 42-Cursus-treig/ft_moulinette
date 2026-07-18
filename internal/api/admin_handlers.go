@@ -93,10 +93,10 @@ func (h *handlers) adminPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{
-		"Exercises": tiles,
-		"User":      user,
-	}
+	data := h.navFlags(user)
+	data["Exercises"] = tiles
+	data["User"] = user
+	data["Page"] = "admin"
 	if h.queue != nil {
 		stats, total, today := buildModStats(h.queue.List(), time.Now())
 		data["Stats"] = stats

@@ -10,7 +10,7 @@
 
 {{define "header_actions"}}
 <div class="header-actions">
-  {{if .IsAdmin}}
+  {{if and .IsAdmin (ne .Page "admin")}}
   <a href="/admin" class="theme-toggle" aria-label="Administration" title="Administration">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>

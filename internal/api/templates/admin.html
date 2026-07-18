@@ -14,17 +14,7 @@
 <body>
   <header>
     <h1>Administration</h1>
-    <div class="header-actions">
-      <a href="/" class="theme-toggle" aria-label="Retour à l'accueil" title="Retour à l'accueil">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7"></path>
-        </svg>
-      </a>
-      <span class="user-badge">{{.User.Login}}</span>
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
-        <img id="theme-icon" src="/static/img/moon.svg" alt="" width="20" height="20">
-      </button>
-    </div>
+    {{template "header_actions" .}}
   </header>
 
   <div class="admin-list" id="admin-sortable-list">
