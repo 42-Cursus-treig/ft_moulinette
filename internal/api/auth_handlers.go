@@ -34,7 +34,7 @@ func (h *handlers) authLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "erreur interne", http.StatusInternalServerError)
 		return
 	}
-	auth.SetStateCookie(w, state)
+	h.sessions.SetStateCookie(w, state)
 	http.Redirect(w, r, h.oauth.AuthorizeURL(state), http.StatusFound)
 }
 
@@ -47,7 +47,7 @@ func (h *handlers) authCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := r.URL.Query().Get("state")
-	if !auth.VerifyStateCookie(r, state) {
+	if !h.sessions.VerifyStateCookie(r, state) {
 		http.Error(w, "état OAuth invalide, réessayez de vous connecter", http.StatusBadRequest)
 		return
 	}
