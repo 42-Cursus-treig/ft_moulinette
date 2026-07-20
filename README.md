@@ -73,8 +73,9 @@ go build -o ft_intra ./cmd/server && ./ft_intra                # :8080
 ```caddyfile
 # 4. Reverse proxy Caddy (HTTPS auto) — voir ft_intra/deploy/Caddyfile
 moulinette.ft-moulinette.fr        { reverse_proxy localhost:9090 }
-ft-moulinette.fr, agenda.ft-moulinette.fr,
-holy-graph.ft-moulinette.fr, projects.ft-moulinette.fr { reverse_proxy localhost:8080 }
+ft-moulinette.fr, dashboard.ft-moulinette.fr,
+agenda.ft-moulinette.fr, projects.ft-moulinette.fr { reverse_proxy localhost:8080 }
+# holy-graph.ft-moulinette.fr : appli séparée (SPA), pas servie par ft_intra.
 ```
 
 5. **DNS** : pointer les sous-domaines vers le serveur.
