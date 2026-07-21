@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
-	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
 	"github.com/tristan-reig/ft-moulinette/internal/queue"
@@ -13,7 +12,7 @@ import (
 
 // NewRouter câble les routes de l'interface web et de l'API JSON sur
 // un même mux. Toutes les routes hors /auth exigent une session 42.
-func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *auth.Store, serverBootID string, locksStore *locks.Store, adminLogins map[string]bool, poolSvc *pool.Service, ft *fortytwo.Service, maintenance bool) (http.Handler, error) {
+func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *auth.Store, serverBootID string, locksStore *locks.Store, adminLogins map[string]bool, poolSvc *pool.Service, maintenance bool) (http.Handler, error) {
 	tmpl, err := loadTemplates()
 	if err != nil {
 		return nil, fmt.Errorf("chargement des templates: %w", err)
@@ -35,7 +34,6 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 		locks:        locksStore,
 		adminLogins:  adminLogins,
 		pool:         poolSvc,
-		fortytwo:     ft,
 		maintenance:  maintenance,
 	}
 
@@ -47,20 +45,13 @@ func NewRouter(q *queue.Queue, testsDir string, oauth auth.Config, sessions *aut
 
 	// Interface web (htmx). L'accès des membres non-admins à chaque section
 	// est bloqué et renvoie vers la page "disabled.html".
-	// L'intra dashboard est désormais l'accueil (juste après le login) ;
-	// l'outil moulinette passe sur /moulinette, accessible depuis le menu.
-	mux.HandleFunc("GET /{$}", h.requireNotMaintenancePage(h.dashboard))
-	mux.HandleFunc("GET /moulinette", h.requireSectionPage(SectionMoulinette, h.index))
+	mux.HandleFunc("GET /{$}", h.requireSectionPage(SectionMoulinette, h.index))
 	mux.HandleFunc("GET /history", h.requireSectionPage(SectionHistory, h.history))
 	mux.HandleFunc("GET /classement", h.requireSectionPage(SectionClassement, h.rankingPage))
 	mux.HandleFunc("GET /ui/classement", h.requireSectionFragment(SectionClassement, h.rankingFragment))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", static))
 	mux.HandleFunc("POST /ui/jobs", h.requireSectionFragment(SectionMoulinette, h.submitJobUI))
 	mux.HandleFunc("GET /ui/jobs/{id}", h.requireSectionFragment(SectionMoulinette, h.jobStatusUI))
-
-	// Dashboard : actions htmx (inscription projet, feedback correcteur).
-	mux.HandleFunc("POST /ui/projects/register", h.requireNotMaintenanceFragment(h.registerProject))
-	mux.HandleFunc("POST /ui/corrections/feedback", h.requireNotMaintenanceFragment(h.submitFeedback))
 
 	// Flush de l'historique
 	mux.HandleFunc("POST /ui/session/close", h.requireNotMaintenanceAPI(h.closeSession))

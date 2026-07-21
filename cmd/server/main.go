@@ -19,7 +19,6 @@ import (
 
 	"github.com/tristan-reig/ft-moulinette/internal/api"
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
-	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
 	"github.com/tristan-reig/ft-moulinette/internal/history"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
@@ -87,15 +86,14 @@ func main() {
 		log.Fatal("MOULINETTE_42_CLIENT_ID et MOULINETTE_42_CLIENT_SECRET sont requis " +
 			"(créez une application sur https://profile.intra.42.fr/oauth/applications/new)")
 	}
-	// Scope OAuth demandé à 42. L'intra dashboard lit projets/corrections et
-	// écrit (inscription à un projet, feedback correcteur) : le défaut est donc
-	// « public projects ». Le scope doit être coché sur l'app côté intra, sinon
-	// 42 refuse l'autorisation. Le changer oblige les utilisateurs à se
-	// reconnecter (le nouveau droit n'est porté que par un jeton fraîchement
-	// émis). Repasser à « public » désactive de fait les briques 42 du dashboard.
+	// Scope OAuth demandé à 42. Défaut « public » (profil + classement) ;
+	// mettre « public projects » pour débloquer l'agenda des créneaux de
+	// correction - à condition d'avoir aussi coché « projects » sur l'app côté
+	// intra. Changer ce scope oblige les utilisateurs à se reconnecter (le
+	// nouveau droit n'est porté que par un jeton fraîchement émis).
 	oauthScope := os.Getenv("MOULINETTE_42_SCOPE")
 	if oauthScope == "" {
-		oauthScope = "public projects"
+		oauthScope = "public"
 	}
 	oauthConfig := auth.Config{
 		ClientID:     clientID,
@@ -164,11 +162,7 @@ func main() {
 	// ne se mettent à jour que quand un navigateur a la page ouverte.
 	poolService.StartRefreshLoop()
 
-	// Client 42 user-scoped du dashboard : vise la même base que le flux OAuth
-	// (API réelle, ou mock via MOULINETTE_42_BASE_URL pour le dev).
-	ftService := fortytwo.NewService(oauthConfig.APIBaseURL())
-
-	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, ftService, maintenance)
+	router, err := api.NewRouter(q, testsDir, oauthConfig, sessions, serverBootID, locksStore, adminLogins, poolService, maintenance)
 	if err != nil {
 		log.Fatal(err)
 	}
