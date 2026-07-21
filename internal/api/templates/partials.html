@@ -18,11 +18,20 @@
     </svg>
   </a>
   {{end}}
-  {{if and .NavMoulinette (ne .Page "moulinette")}}
-  <a href="/" class="theme-toggle" aria-label="Moulinette" title="Moulinette">
+  {{if and .NavDashboard (ne .Page "dashboard")}}
+  <a href="/" class="theme-toggle" aria-label="Accueil" title="Accueil">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
       <path d="M9 22V12h6v10"></path>
+    </svg>
+  </a>
+  {{end}}
+  {{if and .NavMoulinette (ne .Page "moulinette")}}
+  <a href="/moulinette" class="theme-toggle" aria-label="Moulinette" title="Moulinette">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <path d="M14 2v6h6"></path>
+      <path d="M9 13l2 2 4-4"></path>
     </svg>
   </a>
   {{end}}
