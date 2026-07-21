@@ -62,7 +62,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/ft_moulinette
-            git pull --ff-only
-            docker compose up -d --build
-            docker image prune -f
+            set -e
+            # run.sh vit dans ft_intra et build/lance les 2 services (intra + moulinette,
+            # clonés côte à côte). On met les 2 repos à jour puis on redémarre via run.sh.
+            cd ~/ft_intra      && git pull --ff-only
+            cd ~/ft_moulinette && git pull --ff-only
+            cd ~/ft_intra      && bash run.sh restart

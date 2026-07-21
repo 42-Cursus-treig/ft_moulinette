@@ -181,11 +181,15 @@ func (s *Store) Destroy(w http.ResponseWriter, r *http.Request) {
 }
 
 // SetStateCookie pose le state CSRF, le temps de l'aller-retour vers 42.
-func SetStateCookie(w http.ResponseWriter, state string) {
+// Domaine partagé (s.cookieDomain) : si le login n'est pas délégué à la
+// racine, le flux OAuth se joue entièrement sur ce host, mais partager le
+// cookie évite toute surprise si l'URI de callback 42 pointe ailleurs.
+func (s *Store) SetStateCookie(w http.ResponseWriter, state string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookie,
 		Value:    state,
 		Path:     "/auth",
+		Domain:   s.cookieDomain,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   600,
@@ -193,7 +197,7 @@ func SetStateCookie(w http.ResponseWriter, state string) {
 }
 
 // VerifyStateCookie compare le state reçu à celui posé avant redirection (anti-CSRF).
-func VerifyStateCookie(r *http.Request, state string) bool {
+func (s *Store) VerifyStateCookie(r *http.Request, state string) bool {
 	cookie, err := r.Cookie(stateCookie)
 	return err == nil && state != "" && cookie.Value == state
 }
