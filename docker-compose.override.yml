@@ -1,6 +1,5 @@
 services:
   server:
-    ports: !reset []
     env_file:
       - .env
     volumes:
@@ -8,20 +7,3 @@ services:
       - /tmp:/tmp
       - ./data:/app/data
     restart: unless-stopped
-
-  caddy:
-    image: caddy:2
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - server
-    restart: unless-stopped
-
-volumes:
-  caddy_data:
-  caddy_config:

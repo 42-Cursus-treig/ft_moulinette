@@ -58,3 +58,32 @@ func TestIdentityCookieCrossService(t *testing.T) {
 		t.Fatal("SSO : sans secret configuré, le cookie ne doit pas être accepté")
 	}
 }
+
+// TestIdentityWireFormat fige le format du cookie d'identité sur le fil.
+// L'implémentation est dupliquée à l'identique dans ft_intra et ft_moulinette :
+// ce test DOIT être identique dans les deux repos, avec le même vecteur.
+// S'il casse, c'est que le format a changé — le SSO cassera en prod tant que
+// l'autre repo n'aura pas reçu exactement la même modification.
+func TestIdentityWireFormat(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	exp := time.Unix(2000000000, 0)
+
+	const want = "NDJ8dHJlaWd8MjAwMDAwMDAwMA.gQQGXK3TwuXoKarnr4ajtC2G2Prrk0WaZmVcOiqEYkg" // figer au premier run
+
+	got := signIdentity(User{ID: 42, Login: "treig"}, exp, secret)
+	if got != want {
+		t.Fatalf("format du cookie d'identité modifié — le SSO cassera avec ft_moulinette\n got: %s\nwant: %s", got, want)
+	}
+}
+
+// TestIdentityWireFormatRoundTrip vérifie que le vecteur figé ci-dessus est
+// bien accepté par le vérificateur courant (sens lecture du contrat).
+func TestIdentityWireFormatRoundTrip(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	exp := time.Unix(2000000000, 0)
+
+	user, ok := verifyIdentity(signIdentity(User{ID: 42, Login: "treig"}, exp, secret), secret)
+	if !ok || user.ID != 42 || user.Login != "treig" {
+		t.Fatalf("relecture du vecteur figé : obtenu %+v ok=%v", user, ok)
+	}
+}

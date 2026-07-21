@@ -31,35 +31,33 @@ func main() {
 		log.Fatal("lecture du .env: ", err)
 	}
 
-	// Fuseau par défaut du serveur : heure de France. Ainsi time.Now() et tous
-	// les affichages (horaires d'exam, « MàJ » des classements, logs) sont en
-	// heure locale française sans conversion explicite. La base tzdata est
-	// embarquée dans le binaire (import _ "time/tzdata") pour fonctionner même
-	// dans un conteneur sans paquet tzdata.
+	// Fuseau par défaut du serveur : heure de France, pour que time.Now() et
+	// tous les affichages (horaires d'exam, « MàJ » des classements, logs)
+	// soient en heure locale française sans conversion explicite.
 	if loc, err := time.LoadLocation("Europe/Paris"); err == nil {
 		time.Local = loc
 	} else {
 		log.Printf("fuseau Europe/Paris indisponible, on garde %s : %v", time.Local, err)
 	}
 
-	addr := os.Getenv("MOULINETTE_ADDR")
+	addr := env("FT_MOULINETTE_ADDR", "MOULINETTE_ADDR")
 	if addr == "" {
-		addr = ":8080"
+		addr = ":9090"
 	}
-	testsDir := os.Getenv("MOULINETTE_TESTS_DIR")
+	testsDir := env("FT_MOULINETTE_TESTS_DIR", "MOULINETTE_TESTS_DIR")
 	if testsDir == "" {
 		testsDir = "tests"
 	}
-	historyDir := os.Getenv("MOULINETTE_HISTORY_DIR")
+	historyDir := env("FT_MOULINETTE_HISTORY_DIR", "MOULINETTE_HISTORY_DIR")
 	if historyDir == "" {
 		historyDir = "data/history"
 	}
-	locksPath := os.Getenv("MOULINETTE_LOCKS_FILE")
+	locksPath := env("FT_MOULINETTE_LOCKS_FILE", "MOULINETTE_LOCKS_FILE")
 	if locksPath == "" {
 		locksPath = "data/locked_projects.json"
 	}
 
-	adminLoginsEnv := os.Getenv("MOULINETTE_ADMIN_LOGINS")
+	adminLoginsEnv := env("FT_MOULINETTE_ADMIN_LOGINS", "MOULINETTE_ADMIN_LOGINS")
 	if adminLoginsEnv == "" {
 		adminLoginsEnv = "treig"
 	}
@@ -71,27 +69,26 @@ func main() {
 		}
 	}
 
-	maintenance := os.Getenv("MOULINETTE_MAINTENANCE") == "true"
+	maintenance := env("FT_MOULINETTE_MAINTENANCE", "MOULINETTE_MAINTENANCE") == "true"
 	if maintenance {
 		log.Println("MODE MAINTENANCE actif : seuls les admins ont accès")
 	}
 
-	clientID := os.Getenv("MOULINETTE_42_CLIENT_ID")
-	clientSecret := os.Getenv("MOULINETTE_42_CLIENT_SECRET")
-	redirectURL := os.Getenv("MOULINETTE_42_REDIRECT_URL")
+	clientID := env("FT_42_CLIENT_ID", "MOULINETTE_42_CLIENT_ID")
+	clientSecret := env("FT_42_CLIENT_SECRET", "MOULINETTE_42_CLIENT_SECRET")
+	redirectURL := env("FT_42_REDIRECT_URL", "MOULINETTE_42_REDIRECT_URL")
 	if redirectURL == "" {
-		redirectURL = "http://localhost:8080/auth/callback"
+		redirectURL = "http://localhost:9090/auth/callback"
 	}
 	if clientID == "" || clientSecret == "" {
-		log.Fatal("MOULINETTE_42_CLIENT_ID et MOULINETTE_42_CLIENT_SECRET sont requis " +
+		log.Fatal("FT_42_CLIENT_ID et FT_42_CLIENT_SECRET sont requis " +
 			"(créez une application sur https://profile.intra.42.fr/oauth/applications/new)")
 	}
-	// Scope OAuth demandé à 42. Défaut « public » (profil + classement) ;
-	// mettre « public projects » pour débloquer l'agenda des créneaux de
-	// correction - à condition d'avoir aussi coché « projects » sur l'app côté
-	// intra. Changer ce scope oblige les utilisateurs à se reconnecter (le
-	// nouveau droit n'est porté que par un jeton fraîchement émis).
-	oauthScope := os.Getenv("MOULINETTE_42_SCOPE")
+	// Scope OAuth demandé à 42. Défaut « public » (profil + classement) ; le
+	// scope demandé doit être coché sur l'app côté intra. Changer ce scope
+	// oblige les utilisateurs à se reconnecter (le nouveau droit n'est porté
+	// que par un jeton fraîchement émis).
+	oauthScope := env("FT_42_SCOPE", "MOULINETTE_42_SCOPE")
 	if oauthScope == "" {
 		oauthScope = "public"
 	}
@@ -102,20 +99,23 @@ func main() {
 		Scope:        oauthScope,
 		// Vide en temps normal (l'API 42 officielle). Permet de pointer vers
 		// un mock local pour développer/tester sans dépendre de l'intra.
-		BaseURL: os.Getenv("MOULINETTE_42_BASE_URL"),
+		BaseURL: env("FT_42_BASE_URL", "MOULINETTE_42_BASE_URL"),
 	}
+
 	sessions := auth.NewStore()
 	// Cookie d'identité signé, partagé avec ft_intra sur .ft-moulinette.fr : un
 	// user connecté sur la racine (ft_intra) est reconnu ici sans re-login.
 	// Sans secret : mode mono-service (dev), login OAuth local classique.
-	if secret := os.Getenv("MOULINETTE_SESSION_SECRET"); secret != "" {
-		sessions.UseIdentity([]byte(secret), os.Getenv("MOULINETTE_COOKIE_DOMAIN"))
+	// Format du cookie : voir internal/auth/identity.go — contrat partagé avec
+	// ft_intra, toute modification doit être appliquée des deux côtés.
+	if secret := env("FT_SSO_SECRET", "MOULINETTE_SESSION_SECRET"); secret != "" {
+		sessions.UseIdentity([]byte(secret), env("FT_SSO_COOKIE_DOMAIN", "MOULINETTE_COOKIE_DOMAIN"))
 	} else {
-		log.Println("MOULINETTE_SESSION_SECRET absent : SSO inter-services désactivé (dev mono-service)")
+		log.Println("FT_SSO_SECRET absent : SSO inter-services désactivé (dev mono-service)")
 	}
 	// En prod, le login se fait sur la racine ft_intra : on y renvoie les
 	// visiteurs non connectés (ex. https://ft-moulinette.fr/login).
-	if loginURL := os.Getenv("MOULINETTE_LOGIN_URL"); loginURL != "" {
+	if loginURL := env("FT_MOULINETTE_LOGIN_URL", "MOULINETTE_LOGIN_URL"); loginURL != "" {
 		api.SetLoginURL(loginURL)
 	}
 
@@ -129,8 +129,8 @@ func main() {
 		log.Fatal("initialisation des verrous: ", err)
 	}
 
-	// Pool de workers : chaque worker prend un job dans la queue,
-	// le fait tourner dans la sandbox Docker, et stocke le résultat.
+	// Pool de workers : chaque worker prend un job dans la queue, le fait
+	// tourner dans la sandbox Docker, et stocke le résultat.
 	workerCount := 3
 	q := queue.New(workerCount, sandbox.Run, hist)
 	if err := q.LoadHistory(); err != nil {
@@ -139,21 +139,20 @@ func main() {
 	q.Start()
 	defer q.Stop()
 
-	// Identifiant unique de CE démarrage du serveur : sert à distinguer, sur
-	// la page principale, "jobs de la session serveur actuelle" (visibles,
-	// survivent à un F5) de "jobs d'un précédent démarrage" (uniquement
-	// visibles sur /history désormais).
+	// Identifiant unique de CE démarrage du serveur : distingue, sur la page
+	// principale, les jobs de la session serveur actuelle (visibles, survivent
+	// à un F5) de ceux d'un précédent démarrage (visibles sur /history).
 	serverBootID := fmt.Sprintf("%d", time.Now().UnixNano())
 
-	campusName := os.Getenv("MOULINETTE_CAMPUS_NAME")
+	campusName := env("FT_MOULINETTE_CAMPUS_NAME", "MOULINETTE_CAMPUS_NAME")
 	if campusName == "" {
-		campusName = "Perpignan" // Valeur par défaut
+		campusName = "Perpignan"
 	}
-	poolCachePath := os.Getenv("MOULINETTE_POOL_CACHE")
+	poolCachePath := env("FT_MOULINETTE_POOL_CACHE", "MOULINETTE_POOL_CACHE")
 	if poolCachePath == "" {
 		poolCachePath = "data/pool_cache.json"
 	}
-	poolHistoryPath := os.Getenv("MOULINETTE_POOL_HISTORY")
+	poolHistoryPath := env("FT_MOULINETTE_POOL_HISTORY", "MOULINETTE_POOL_HISTORY")
 	if poolHistoryPath == "" {
 		poolHistoryPath = "data/pool_history.json"
 	}
@@ -169,10 +168,8 @@ func main() {
 
 	srv := &http.Server{Addr: addr, Handler: router}
 
-	// Arrêt propre sur Ctrl+C / SIGTERM : on flush l'historique en attente
-	// de tous les utilisateurs avant de quitter (limite le risque de perte
-	// par rapport à une coupure brutale, où seul le beacon de fermeture
-	// d'onglet ou la déconnexion aurait pu déclencher le flush).
+	// Arrêt propre sur Ctrl+C / SIGTERM : on flush l'historique en attente de
+	// tous les utilisateurs avant de quitter.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

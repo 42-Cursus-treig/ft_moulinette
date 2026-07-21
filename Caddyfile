@@ -1,3 +1,0 @@
-ft-moulinette.fr, www.ft-moulinette.fr {
-    reverse_proxy server:8080
-}
