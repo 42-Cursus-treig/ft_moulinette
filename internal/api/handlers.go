@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
+	"github.com/tristan-reig/ft-moulinette/internal/fortytwo"
 	"github.com/tristan-reig/ft-moulinette/internal/locks"
 	"github.com/tristan-reig/ft-moulinette/internal/models"
 	"github.com/tristan-reig/ft-moulinette/internal/pool"
@@ -30,6 +31,7 @@ type handlers struct {
 	locks        *locks.Store
 	adminLogins  map[string]bool
 	pool         *pool.Service
+	fortytwo     *fortytwo.Service
 	maintenance  bool
 }
 
@@ -57,6 +59,7 @@ func (h *handlers) sectionVisible(user auth.User, section string) bool {
 func (h *handlers) navFlags(user auth.User) map[string]any {
 	flags := map[string]any{
 		"IsAdmin":       h.isAdmin(user),
+		"NavDashboard":  true, // l'intra est l'accueil, accessible à tout membre connecté
 		"NavMoulinette": h.sectionVisible(user, SectionMoulinette),
 		"NavClassement": h.sectionVisible(user, SectionClassement),
 		"NavHistory":    h.sectionVisible(user, SectionHistory),
