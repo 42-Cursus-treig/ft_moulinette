@@ -5,10 +5,15 @@ services:
       dockerfile: Dockerfile
     ports:
       - "127.0.0.1:9090:9090"
+    env_file:
+      - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/app/data
+      - ./tests:/app/tests
     environment:
       - FT_MOULINETTE_ADDR=:9090
+    restart: unless-stopped
 
   sandbox-image:
     build:
