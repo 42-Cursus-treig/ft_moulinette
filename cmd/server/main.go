@@ -42,7 +42,7 @@ func main() {
 
 	addr := os.Getenv("FT_MOULINETTE_ADDR")
 	if addr == "" {
-		addr = ":9090"
+		addr = ":8080"
 	}
 	testsDir := os.Getenv("FT_MOULINETTE_TESTS_DIR")
 	if testsDir == "" {
