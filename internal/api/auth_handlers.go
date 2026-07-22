@@ -114,6 +114,10 @@ func (h *handlers) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, r, loginURL, http.StatusFound)
 			return
 		}
+		if h.piscineBlocked(user) {
+			h.renderPiscineBlocked(w, user)
+			return
+		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))
 	}
 }
@@ -130,6 +134,12 @@ func (h *handlers) requireAuthFragment(next http.HandlerFunc) http.HandlerFunc {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		if h.piscineBlocked(user) {
+			// Recharge la page entière, qui rendra l'écran de blocage.
+			w.Header().Set("HX-Redirect", "/")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))
 	}
 }
@@ -141,6 +151,10 @@ func (h *handlers) requireAuthAPI(next http.HandlerFunc) http.HandlerFunc {
 		user, ok := h.sessions.FromRequest(r)
 		if !ok {
 			http.Error(w, `{"error":"authentification requise : connectez-vous sur `+"/"+` depuis un navigateur d'abord"}`, http.StatusUnauthorized)
+			return
+		}
+		if h.piscineBlocked(user) {
+			http.Error(w, `{"error":"accès réservé aux cadets : votre compte n'a que le cursus piscine"}`, http.StatusForbidden)
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, user)))

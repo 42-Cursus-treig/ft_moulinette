@@ -1,0 +1,48 @@
+{{define "blocked"}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ft_moulinette - Accès réservé</title>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/css/common.css">
+<link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body class="login-body">
+
+  <div class="login-theme-corner">
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
+      <img id="theme-icon" src="/static/img/moon.svg" alt="" width="20" height="20">
+    </button>
+  </div>
+
+  <main class="login-container">
+    <div class="login-left">
+      <div class="login-surtitle">
+        <span class="surtitle-bar"></span> ACCÈS RÉSERVÉ • 42
+      </div>
+      <h1 class="login-title">FT<span>_</span>MOULINETTE</h1>
+      <p class="login-subtitle">Réservé aux cadets et students.</p>
+    </div>
+
+    <div class="login-right">
+      <div class="brutal-card new-login-card">
+        <p class="blocked-title">Accès non autorisé</p>
+        <p class="blocked-text">
+          Bonjour <strong>{{.User.Login}}</strong>. Ton compte 42 n'a pour
+          l'instant que le cursus <strong>Piscine</strong>. Cet outil est
+          réservé aux cadets et students. Reviens une fois ton cursus principal
+          démarré&nbsp;!
+        </p>
+        <form action="/auth/logout" method="post">
+          <button type="submit" class="login-cta">
+            <span>SE DÉCONNECTER</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

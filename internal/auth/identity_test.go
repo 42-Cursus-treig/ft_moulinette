@@ -68,7 +68,7 @@ func TestIdentityWireFormat(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
 	exp := time.Unix(2000000000, 0)
 
-	const want = "NDJ8dHJlaWd8MjAwMDAwMDAwMA.gQQGXK3TwuXoKarnr4ajtC2G2Prrk0WaZmVcOiqEYkg" // figer au premier run
+	const want = "NDJ8dHJlaWd8MjAwMDAwMDAwMHww.iEPdi37p0z4w1_bYL9k-W7CzmLmj4DDJMZAfRrq-UGM" // figer au premier run (format id|login|exp|piscine)
 
 	got := signIdentity(User{ID: 42, Login: "treig"}, exp, secret)
 	if got != want {

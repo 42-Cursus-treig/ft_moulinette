@@ -133,6 +133,29 @@
   align-items: center;
 }
 
+.blocked-title {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  margin: 0 0 1rem;
+  text-align: center;
+}
+
+.blocked-text {
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0 0 2rem;
+  text-align: center;
+}
+
+.blocked-text strong {
+  color: var(--text);
+}
+
 .logo-background-panel {
   position: relative;
   width: 100%;
