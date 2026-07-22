@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -142,6 +143,11 @@ type User struct {
 	Image struct {
 		Link string `json:"link"`
 	} `json:"image"`
+	// PiscineOnly marque un compte qui n'a QUE des cursus de piscine (pas encore
+	// cadet/student) : ces comptes sont bloqués sur tout le site. Calculé à la
+	// connexion depuis cursus_users, puis propagé aux autres services du split
+	// via le cookie d'identité signé (jamais renvoyé par l'API 42, d'où json:"-").
+	PiscineOnly bool `json:"-"`
 }
 
 // FetchUser récupère le profil du titulaire de l'access token.
@@ -163,9 +169,41 @@ func (c Config) FetchUser(accessToken string) (*User, error) {
 		return nil, fmt.Errorf("/v2/me a renvoyé %d: %s", resp.StatusCode, body)
 	}
 
-	var u User
-	if err := json.Unmarshal(body, &u); err != nil {
+	// On lit l'identité de base ET les cursus, pour décider si le compte n'est
+	// qu'un piscineux (à bloquer) ou déjà un cadet/student.
+	var raw struct {
+		User
+		CursusUsers []struct {
+			Cursus struct {
+				Slug string `json:"slug"`
+			} `json:"cursus"`
+		} `json:"cursus_users"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("profil 42 illisible: %w", err)
 	}
+	u := raw.User
+	slugs := make([]string, 0, len(raw.CursusUsers))
+	for _, cu := range raw.CursusUsers {
+		slugs = append(slugs, cu.Cursus.Slug)
+	}
+	u.PiscineOnly = isPiscineOnly(slugs)
 	return &u, nil
+}
+
+// isPiscineOnly indique qu'un profil n'a QUE des cursus de piscine (aucun cursus
+// principal 42) : le compte est un piscineux, pas encore cadet/student. Un
+// cursus est « piscine » si son slug contient "piscine" (c-piscine, 42-piscine,
+// piscine-…) ; le cursus principal cadet/student porte le slug "42cursus", qui
+// ne contient pas "piscine". Un profil sans aucun cursus n'est pas bloqué.
+func isPiscineOnly(slugs []string) bool {
+	if len(slugs) == 0 {
+		return false
+	}
+	for _, s := range slugs {
+		if !strings.Contains(strings.ToLower(s), "piscine") {
+			return false
+		}
+	}
+	return true
 }

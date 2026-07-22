@@ -17,9 +17,11 @@ import (
 // sans store partagé ni appel réseau.
 const identityCookie = "ft_identity"
 
-// signIdentity encode "id|login|exp" suivi de sa signature HMAC.
+// signIdentity encode "id|login|exp|piscine" suivi de sa signature HMAC. Le
+// dernier champ ("1"/"0") propage le blocage piscineux au service consommateur,
+// qui ne dispose que du cookie (pas du token 42 pour recalculer).
 func signIdentity(user User, expiresAt time.Time, secret []byte) string {
-	payload := strconv.Itoa(user.ID) + "|" + user.Login + "|" + strconv.FormatInt(expiresAt.Unix(), 10)
+	payload := strconv.Itoa(user.ID) + "|" + user.Login + "|" + strconv.FormatInt(expiresAt.Unix(), 10) + "|" + boolField(user.PiscineOnly)
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(payload))
 	enc := base64.RawURLEncoding
@@ -47,7 +49,9 @@ func verifyIdentity(value string, secret []byte) (User, bool) {
 		return User{}, false
 	}
 	fields := strings.Split(string(payload), "|")
-	if len(fields) != 3 {
+	// 3 champs = ancien format sans le drapeau piscine (toléré le temps du
+	// rollout, blocage à false par défaut) ; 4 champs = format courant.
+	if len(fields) < 3 {
 		return User{}, false
 	}
 	exp, err := strconv.ParseInt(fields[2], 10, 64)
@@ -55,5 +59,17 @@ func verifyIdentity(value string, secret []byte) (User, bool) {
 		return User{}, false
 	}
 	id, _ := strconv.Atoi(fields[0])
-	return User{ID: id, Login: fields[1]}, true
+	u := User{ID: id, Login: fields[1]}
+	if len(fields) >= 4 {
+		u.PiscineOnly = fields[3] == "1"
+	}
+	return u, true
+}
+
+// boolField sérialise un booléen pour le payload d'identité ("1"/"0").
+func boolField(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
 }

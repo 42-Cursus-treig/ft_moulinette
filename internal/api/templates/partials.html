@@ -61,3 +61,55 @@
   </button>
 </div>
 {{end}}
+
+{{/* topnav — barre de navigation globale, identique à celle de ft_intra. Ici
+   Moulinette/Classement/Historique sont internes (relatifs) et Dashboard/Agenda/
+   Holy Graph pointent vers les autres services du split (absolus). */}}
+{{define "topnav"}}
+<nav class="topnav" aria-label="Navigation principale">
+  <div class="topnav-inner">
+    <a class="topnav-brand" href="https://ft-moulinette.fr/">ft<span>_</span>moulinette</a>
+
+    <button type="button" class="topnav-burger" id="topnav-burger" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+
+    <div class="topnav-links" id="topnav-links">
+      <a href="https://ft-moulinette.fr/" class="topnav-link ext">Dashboard <span class="ext-arrow">↗</span></a>
+      <a href="https://agenda.ft-moulinette.fr/" class="topnav-link ext">Agenda <span class="ext-arrow">↗</span></a>
+      {{if .NavMoulinette}}<a href="/" class="topnav-link{{if eq .Page "moulinette"}} active{{end}}">Moulinette</a>{{end}}
+      <a href="/classement" class="topnav-link{{if eq .Page "classement"}} active{{end}}">Classement</a>
+      {{if .NavHistory}}<a href="/history" class="topnav-link{{if eq .Page "history"}} active{{end}}">Historique</a>{{end}}
+      {{if .IsAdmin}}<a href="/admin" class="topnav-link{{if eq .Page "admin"}} active{{end}}">Admin</a>{{end}}
+      <a href="https://holy-graph.ft-moulinette.fr/" class="topnav-link ext">Holy Graph <span class="ext-arrow">↗</span></a>
+    </div>
+
+    <div class="topnav-actions">
+      <span class="user-badge">{{.User.Login}}</span>
+      <form method="post" action="/auth/logout">
+        <button type="submit" class="theme-toggle" title="Se déconnecter" aria-label="Se déconnecter">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </form>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
+        <img id="theme-icon" src="/static/img/moon.svg" alt="" width="20" height="20">
+      </button>
+    </div>
+  </div>
+</nav>
+<script>
+  (function () {
+    var b = document.getElementById('topnav-burger');
+    var l = document.getElementById('topnav-links');
+    if (!b || !l) return;
+    b.addEventListener('click', function () {
+      var open = l.classList.toggle('open');
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+</script>
+{{end}}

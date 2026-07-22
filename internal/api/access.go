@@ -6,6 +6,22 @@ import (
 	"github.com/tristan-reig/ft-moulinette/internal/auth"
 )
 
+// piscineBlocked dit si l'accès doit être refusé à ce compte : un piscineux
+// (aucun cursus hors piscine) est bloqué sur tout le site ; un admin passe
+// toujours.
+func (h *handlers) piscineBlocked(user auth.User) bool {
+	return user.PiscineOnly && !h.isAdmin(user)
+}
+
+// renderPiscineBlocked rend la page de blocage plein écran (403) présentée aux
+// comptes piscine.
+func (h *handlers) renderPiscineBlocked(w http.ResponseWriter, user auth.User) {
+	w.WriteHeader(http.StatusForbidden)
+	if err := h.tmpl.ExecuteTemplate(w, "blocked", map[string]any{"User": user}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // requireSectionPage protège une PAGE membre : un admin passe toujours ; un
 // membre passe si la section lui est visible, sinon reçoit la page
 // « désactivée » (en-tête conservé pour continuer à naviguer).

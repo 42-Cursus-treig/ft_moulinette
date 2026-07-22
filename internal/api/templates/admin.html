@@ -12,9 +12,9 @@
 <script src="/static/js/app.js" defer></script>
 </head>
 <body>
+  {{template "topnav" .}}
   <header>
     <h1>Administration</h1>
-    {{template "header_actions" .}}
   </header>
 
   <div class="admin-list" id="admin-sortable-list">
