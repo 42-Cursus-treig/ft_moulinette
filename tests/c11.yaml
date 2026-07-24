@@ -334,7 +334,7 @@ exercises:
     - mangue
     - banane
     stdin: ''
-    expected_stdout: |-
+    expected_stdout: |
       abricot
       banane
       mangue
@@ -347,7 +347,7 @@ exercises:
     - Zebre
     - Abricot
     stdin: ''
-    expected_stdout: |-
+    expected_stdout: |
       Abricot
       Zebre
       banane
@@ -359,7 +359,7 @@ exercises:
     - ab
     - abc
     stdin: ''
-    expected_stdout: |-
+    expected_stdout: |
       ab
       abc
       abc
@@ -384,7 +384,7 @@ exercises:
     - abricot
     - mangue
     stdin: ''
-    expected_stdout: |-
+    expected_stdout: |
       abricot
       mangue
       zebre
@@ -397,7 +397,7 @@ exercises:
     - abricot
     - mangue
     stdin: ''
-    expected_stdout: |-
+    expected_stdout: |
       zebre
       mangue
       abricot
@@ -410,7 +410,7 @@ exercises:
     - a
     - bb
     stdin: ''
-    expected_stdout: |-
+    expected_stdout: |
       a
       bb
       ccc
