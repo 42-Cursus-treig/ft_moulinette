@@ -1,0 +1,204 @@
+project: c13
+display_name: C13
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 10
+- 20
+- 30
+- 45
+- 60
+- 75
+- 90
+- 100
+exercises:
+- name: ex00
+  dir: ex00
+  source_file: btree_create_node.c
+  harness: harness/c13/ex00.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: cree_node
+    args:
+    - hello
+    stdin: ''
+    expected_stdout: |
+      OK
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex01
+  dir: ex01
+  source_file: btree_apply_prefix.c
+  harness: harness/c13/ex01.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  - harness/c13/tree_helper.c
+  allowed_functions: []
+  tests:
+  - name: parcours_prefix
+    args: []
+    stdin: ''
+    expected_stdout: |
+      d b a c f g 
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex02
+  dir: ex02
+  source_file: btree_apply_infix.c
+  harness: harness/c13/ex02.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  - harness/c13/tree_helper.c
+  allowed_functions: []
+  tests:
+  - name: parcours_infix
+    args: []
+    stdin: ''
+    expected_stdout: |
+      a b c d f g 
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex03
+  dir: ex03
+  source_file: btree_apply_suffix.c
+  harness: harness/c13/ex03.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  - harness/c13/tree_helper.c
+  allowed_functions: []
+  tests:
+  - name: parcours_suffix
+    args: []
+    stdin: ''
+    expected_stdout: |
+      a c b g f d 
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex04
+  dir: ex04
+  source_file: btree_insert_data.c
+  harness: harness/c13/ex04.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  allowed_functions:
+  - btree_create_node
+  - malloc
+  tests:
+  - name: insertion_triee
+    args:
+    - d
+    - b
+    - f
+    - a
+    - c
+    - g
+    stdin: ''
+    expected_stdout: |
+      a b c d f g 
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: ordre_different_meme_resultat
+    args:
+    - g
+    - a
+    - d
+    - c
+    - f
+    - b
+    stdin: ''
+    expected_stdout: |
+      a b c d f g 
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: avec_doublons
+    args:
+    - b
+    - a
+    - a
+    stdin: ''
+    expected_stdout: |
+      a a b 
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex05
+  dir: ex05
+  source_file: btree_search_item.c
+  harness: harness/c13/ex05.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  - harness/c13/tree_helper.c
+  allowed_functions: []
+  tests:
+  - name: trouve
+    args:
+    - c
+    stdin: ''
+    expected_stdout: |
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: absent
+    args:
+    - z
+    stdin: ''
+    expected_stdout: |
+      (null)
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: trouve_racine
+    args:
+    - d
+    stdin: ''
+    expected_stdout: |
+      d
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex06
+  dir: ex06
+  source_file: btree_level_count.c
+  harness: harness/c13/ex06.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  - harness/c13/tree_helper.c
+  allowed_functions: []
+  tests:
+  - name: hauteur_trois
+    args: []
+    stdin: ''
+    expected_stdout: |
+      3
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: arbre_vide
+    args:
+    - empty
+    stdin: ''
+    expected_stdout: |
+      0
+    expected_exit_code: 0
+    timeout_sec: 5
+- name: ex07
+  dir: ex07
+  source_file: btree_apply_by_level.c
+  harness: harness/c13/ex07.c
+  harness_files:
+  - harness/c13/ref_create_node.c
+  - harness/c13/tree_helper.c
+  allowed_functions:
+  - malloc
+  - free
+  tests:
+  - name: parcours_par_niveau
+    args: []
+    stdin: ''
+    expected_stdout: |
+      d 0 1
+      b 1 1
+      f 1 0
+      a 2 1
+      c 2 0
+      g 2 0
+    expected_exit_code: 0
+    timeout_sec: 5
