@@ -335,7 +335,7 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 	}
 
 	studentSources := append([]string{ex.SourceFile}, ex.ExtraSources...)
-	forbidden, err := checkForbiddenFunctions(exDir, studentSources, ex.AllowedFunctions)
+	report, err := checkForbiddenFunctions(exDir, studentSources, ex.AllowedFunctions, "")
 	if err != nil {
 		return models.ExerciseResult{
 			Name:   ex.Name,
@@ -343,11 +343,11 @@ func runExercise(exDir string, ex testdef.ExerciseSpec, normExtraRules []string)
 			Log:    "Impossible de vérifier les fonctions autorisées:\n" + err.Error(),
 		}
 	}
-	if len(forbidden) > 0 {
+	if report.Cheating() {
 		return models.ExerciseResult{
 			Name:   ex.Name,
 			Status: models.ExerciseCheating,
-			Log:    "Fonction(s) non autorisée(s) appelée(s) : " + strings.Join(forbidden, ", "),
+			Log:    "Fonction(s) non autorisée(s) appelée(s) : " + strings.Join(report.Symbols, ", "),
 		}
 	}
 
@@ -622,18 +622,38 @@ func runTest(binPath string, tc testdef.TestCase, checkLeaks bool) models.TestRe
 		return tr
 	}
 
-	exitOK := (runErr == nil) == (tc.ExpectedExitCode == 0)
+	// Code de sortie réel du binaire de l'élève. runErr est nil (exit 0), un
+	// *exec.ExitError (exit non-nul, cas normal d'un programme qui signale une
+	// erreur), ou une autre erreur (le binaire n'a pas pu être lancé -> -1).
+	gotExit := 0
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
+			gotExit = exitErr.ExitCode()
+		} else {
+			gotExit = -1
+		}
+	}
+
+	// Comparaison stricte du code de sortie : on compare la valeur exacte, pas
+	// seulement "zéro vs non-zéro". Nécessaire pour les tests calqués sur une
+	// commande de référence (tail, hexdump) où le code attendu est celui de la
+	// référence (1 sur fichier inexistant, etc.).
+	exitOK := gotExit == tc.ExpectedExitCode
 	stdoutOK := got == tc.ExpectedOut
 	stderrOK := tc.ExpectedErr == nil || errOut == *tc.ExpectedErr
 	tr.Passed = stdoutOK && stderrOK && exitOK
-	if !stdoutOK {
-		// (inchangé : on montre expected/got)
-	}
-	if !stderrOK {
+
+	// Un seul message d'erreur, par ordre de priorité : sortie standard, puis
+	// sortie d'erreur, puis code de sortie. Le stdout attendu/obtenu est déjà
+	// porté par tr.Expected / tr.Got pour l'affichage.
+	switch {
+	case !stdoutOK:
+		tr.Error = "sortie standard inattendue"
+	case !stderrOK:
 		tr.Error = "sortie d'erreur inattendue"
-	}
-	if !exitOK {
-		tr.Error = fmt.Sprintf("code de sortie inattendu: %v", runErr)
+	case !exitOK:
+		tr.Error = fmt.Sprintf("code de sortie inattendu: obtenu %d, attendu %d", gotExit, tc.ExpectedExitCode)
 	}
 	return tr
 }

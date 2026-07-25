@@ -1,8 +1,10 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -54,55 +56,72 @@ func runBinaryTests(exDir string, ex testdef.ExerciseSpec) models.ExerciseResult
 	return exResult
 }
 
-// runBinaryTest lance un test. Si ex.ReferenceCmd est défini, il calcule le
-// stdout attendu en exécutant la commande de référence dans le sandbox ; sinon
-// il s'appuie sur tc.ExpectedOut / tc.ExpectedErr.
 func runBinaryTest(exDir string, ex testdef.ExerciseSpec, tc testdef.TestCase) models.TestResult {
-	tc2 := tc // copie locale : on peut réécrire ExpectedOut depuis la référence
+	tc2 := tc
 
 	if ex.ReferenceCmd != "" {
-		refOut, _, refErr := runReference(exDir, ex.ReferenceCmd, tc.Args, tc.Stdin, tc.TimeoutSec)
-		if refErr != nil {
+		refOut, refErrOut, refExit, timedOut, startErr := runReference(exDir, ex.ReferenceCmd, tc.Args, tc.Stdin, tc.TimeoutSec)
+		if timedOut {
 			return models.TestResult{
 				Name:  tc.Name,
-				Error: "commande de référence indisponible (" + ex.ReferenceCmd + "): " + refErr.Error(),
+				Error: "la commande de référence a dépassé le timeout (" + ex.ReferenceCmd + ")",
+			}
+		}
+		// startErr = la commande n'a pas pu être lancée (binaire absent du
+		// sandbox, ex: hexdump non installé). ÇA, c'est une vraie indisponibilité.
+		// Un exit non-nul (fichier inexistant) n'en est PAS une : on le compare.
+		if startErr != nil {
+			return models.TestResult{
+				Name:  tc.Name,
+				Error: "commande de référence indisponible (" + ex.ReferenceCmd + "): " + startErr.Error(),
 			}
 		}
 		tc2.ExpectedOut = refOut
-		// stderr n'est comparé à la référence que si le YAML le demande
-		// explicitement (préfixes de programme différents sinon).
+		// La référence fixe aussi le code de sortie attendu : 0 si elle a réussi,
+		// non-nul sinon. L'élève doit reproduire ce comportement.
+		if refExit == 0 {
+			tc2.ExpectedExitCode = 0
+		} else {
+			tc2.ExpectedExitCode = refExit
+		}
+		// stderr comparé seulement si le YAML le demande (compare_stderr).
+		if tc.CompareStderr {
+			tc2.ExpectedErr = &refErrOut
+		}
 	}
 
-	// Exécuter le binaire de l'élève via le runTest existant (compare stdout,
-	// stderr si ExpectedErr!=nil, et code de sortie). Pas de valgrind ici.
 	return runTest(filepath.Join(exDir, ex.RunArtifact), tc2, false)
 }
 
-// runReference exécute la commande système de référence dans le sandbox, sur
-// les mêmes fichiers (montés en lecture seule) et avec les mêmes arguments que
-// le test de l'élève. Renvoie son stdout, son stderr et une erreur d'exécution
-// éventuelle.
-func runReference(exDir, cmd string, args []string, stdin string, timeoutSec int) (stdout, stderr string, err error) {
+func runReference(exDir, cmd string, args []string, stdin string, timeoutSec int) (stdout, stderr string, exitCode int, timedOut bool, startErr error) {
 	timeout := defaultTimeout
 	if timeoutSec > 0 {
 		timeout = time.Duration(timeoutSec) * time.Second
 	}
-	dArgs := []string{
-		"run", "--rm",
-		"--network", "none",
-		"--memory", "64m",
-		"--cpus", "0.5",
-		"-v", fmt.Sprintf("%s:/work:ro", exDir),
-		"-w", "/work",
+	full := append([]string{cmd}, args...)
+	dockerArgs := []string{
+		"run", "--rm", "--network", "none", "--memory", "64m", "--cpus", "0.5",
+		"-v", fmt.Sprintf("%s:/work:ro", exDir), "-w", "/work",
 		sandboxImage,
-		cmd,
 	}
-	dArgs = append(dArgs, args...)
+	dockerArgs = append(dockerArgs, full...)
 
 	var in io.Reader
 	if stdin != "" {
 		in = strings.NewReader(stdin)
 	}
-	out, errOut, _, runErr := runDocker(dArgs, timeout, in)
-	return out, errOut, runErr
+	out, errOut, timedOut, runErr := runDocker(dockerArgs, timeout, in)
+
+	// Distinguer "n'a pas démarré" de "a tourné et sort non-zéro".
+	exitCode = 0
+	startErr = nil
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
+			exitCode = exitErr.ExitCode() // la commande a tourné, exit non-nul : normal
+		} else {
+			startErr = runErr // docker n'a pas pu lancer la commande : vraie panne
+		}
+	}
+	return out, errOut, exitCode, timedOut, startErr
 }

@@ -21,6 +21,7 @@ type TestCase struct {
 	ExpectedErr      *string  `yaml:"expected_stderr"`
 	ExpectedExitCode int      `yaml:"expected_exit_code"`
 	TimeoutSec       int      `yaml:"timeout_sec"`
+	CompareStderr    bool     `yaml:"compare_stderr"`
 }
 
 type ExerciseSpec struct {

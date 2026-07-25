@@ -92,19 +92,25 @@ func runMakeExercise(exDir string, ex testdef.ExerciseSpec, _ []string) models.E
 	}
 
 	// 4. Cibles clean/fclean/re.
+	// 4. Cibles clean/fclean/re.
 	if res, ok := checkMakeTargets(exDir, ex); !ok {
 		return res
 	}
 
-	// 5. Linker un harness contre l'artefact et tester (optionnel).
-	//    Nécessite de reconstruire si re/fclean ont nettoyé.
+	// 4bis. Fonctions autorisées. Après les cibles make (fclean a pu supprimer
+	// le binaire) : on reconstruit d'abord, puis on analyse sources + binaire.
 	if ex.RunArtifact != "" || ex.LinkHarness != "" {
 		if out, err := runShell(exDir, "make"); err != nil {
 			return compileErr(ex, "reconstruction avant test impossible:\n"+out)
 		}
 	}
+	if res, ok := checkForbidden(exDir, ex); !ok {
+		return res
+	}
+
+	// 5. Tests.
 	if ex.RunArtifact != "" {
-		return runBinaryTests(exDir, ex) // C10 : binaire (ft_cat…) comparé au système
+		return runBinaryTests(exDir, ex)
 	}
 	return linkAndTest(exDir, ex)
 }
@@ -172,16 +178,33 @@ func checkArtifacts(exDir string, ex testdef.ExerciseSpec) (models.ExerciseResul
 }
 
 // checkForbidden applique le contrôle des fonctions autorisées aux .c rendus.
+// checkForbidden applique le contrôle des fonctions autorisées aux .c rendus.
+// En build_mode "make", source_file vaut "Makefile" : studentCFiles renvoie une
+// liste vide et le contrôle serait inopérant. On découvre alors les .c
+// récursivement, et on analyse le binaire linké en second filet.
 func checkForbidden(exDir string, ex testdef.ExerciseSpec) (models.ExerciseResult, bool) {
-	forbidden, err := checkForbiddenFunctions(exDir, studentCFiles(ex), ex.AllowedFunctions)
+	srcs := studentCFiles(ex)
+	if ex.BuildMode == "make" || ex.BuildMode == "script" {
+		found, err := collectSourceFiles(exDir)
+		if err != nil {
+			return compileErr(ex, "Impossible de lister les sources:\n"+err.Error()), false
+		}
+		srcs = found
+	}
+
+	report, err := checkForbiddenFunctions(exDir, srcs, ex.AllowedFunctions, ex.RunArtifact)
 	if err != nil {
 		return compileErr(ex, "Impossible de vérifier les fonctions autorisées:\n"+err.Error()), false
 	}
-	if len(forbidden) > 0 {
+	if report.Cheating() {
+		log := "Fonction(s) non autorisée(s) appelée(s) : " + strings.Join(report.Symbols, ", ")
+		if len(report.Skipped) > 0 {
+			log += "\n(fichiers non analysables isolément : " + strings.Join(report.Skipped, ", ") + ")"
+		}
 		return models.ExerciseResult{
 			Name:   ex.Name,
 			Status: models.ExerciseCheating,
-			Log:    "Fonction(s) non autorisée(s) appelée(s) : " + strings.Join(forbidden, ", "),
+			Log:    log,
 		}, false
 	}
 	return models.ExerciseResult{}, true

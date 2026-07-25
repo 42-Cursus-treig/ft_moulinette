@@ -1,6 +1,18 @@
 project: c10
 display_name: C10
 required_exercises: 4
+symbol_check: nm
+symbol_aliases:
+  __xpg_basename: basename
+  __errno_location: errno
+  __isoc99_sscanf: sscanf
+symbol_ignore:
+- __libc_start_main
+- __stack_chk_fail
+- __cxa_finalize
+- __gmon_start__
+- _ITM_deregisterTMCloneTable
+- _ITM_registerTMCloneTable
 points:
 - 15
 - 35
@@ -32,31 +44,28 @@ exercises:
       ligne une
       ligne deux
       ligne trois
-    expected_exit_code: 0
+    expected_stderr: ''
     timeout_sec: 5
   - name: Aucun argument
     args: []
-    expected_stdout: ""
+    expected_stdout: ''
     expected_stderr: |
       File name missing.
-    expected_exit_code: 1
     timeout_sec: 5
   - name: Trop d'arguments
     args:
     - sample.txt
     - sample.txt
-    expected_stdout: ""
+    expected_stdout: ''
     expected_stderr: |
       Too many arguments.
-    expected_exit_code: 1
     timeout_sec: 5
   - name: Fichier illisible
     args:
     - /nonexistent_file_xyz
-    expected_stdout: ""
+    expected_stdout: ''
     expected_stderr: |
       Cannot read file.
-    expected_exit_code: 1
     timeout_sec: 5
 - name: ex01
   dir: ex01
@@ -71,6 +80,7 @@ exercises:
   - write
   - strerror
   - basename
+  - errno
   expect_artifacts:
   - ft_cat
   make_targets:
@@ -84,23 +94,39 @@ exercises:
   - name: Fichier multi-lignes
     args:
     - sample.txt
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
   - name: Autre fichier
     args:
     - text.txt
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
   - name: Fichier vide
     args:
     - empty.txt
+    compare_stderr: true
     expected_exit_code: 0
+    timeout_sec: 5
+  - name: Plusieurs fichiers
+    args:
+    - sample.txt
+    - text.txt
+    compare_stderr: true
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: Fichier inexistant
+    args:
+    - /nonexistent_file_xyz
+    compare_stderr: true
     timeout_sec: 5
   - name: Lecture sur stdin
     args: []
     stdin: |
       entrée standard
       deuxième ligne
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
 - name: ex02
@@ -118,6 +144,7 @@ exercises:
   - free
   - strerror
   - basename
+  - errno
   expect_artifacts:
   - ft_tail
   make_targets:
@@ -125,34 +152,54 @@ exercises:
   - fclean
   harness_files:
   - harness/c10/text.txt
+  - harness/c10/empty.txt
   tests:
   - name: tail -c 5
     args:
     - -c
-    - "5"
+    - '5'
     - text.txt
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
   - name: tail -c 20
     args:
     - -c
-    - "20"
+    - '20'
     - text.txt
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
   - name: tail -c plus grand que le fichier
     args:
     - -c
-    - "9999"
+    - '9999'
     - text.txt
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
   - name: tail -c 1
     args:
     - -c
-    - "1"
+    - '1'
     - text.txt
+    compare_stderr: true
     expected_exit_code: 0
+    timeout_sec: 5
+  - name: tail -c sur fichier vide
+    args:
+    - -c
+    - '10'
+    - empty.txt
+    compare_stderr: true
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: tail -c fichier inexistant
+    args:
+    - -c
+    - '5'
+    - /nonexistent_file_xyz
+    compare_stderr: true
     timeout_sec: 5
 - name: ex03
   dir: ex03
@@ -169,6 +216,7 @@ exercises:
   - free
   - strerror
   - basename
+  - errno
   expect_artifacts:
   - ft_hexdump
   make_targets:
@@ -183,17 +231,38 @@ exercises:
     args:
     - -C
     - text.txt
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
   - name: hexdump -C binaire (octets non imprimables)
     args:
     - -C
     - mixed.bin
+    compare_stderr: true
     expected_exit_code: 0
     timeout_sec: 5
+  # Sortie littérale plutôt que reference_cmd : un fichier vide ne produit
+  # AUCUNE sortie. Cas piégeux (beaucoup affichent l'offset 00000000), et
+  # indépendant de la présence de hexdump dans la sandbox.
   - name: hexdump -C fichier vide
     args:
     - -C
     - empty.txt
+    expected_stdout: ''
+    expected_stderr: ''
     expected_exit_code: 0
+    timeout_sec: 5
+  - name: hexdump -C plusieurs fichiers
+    args:
+    - -C
+    - text.txt
+    - mixed.bin
+    compare_stderr: true
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: hexdump -C fichier inexistant
+    args:
+    - -C
+    - /nonexistent_file_xyz
+    compare_stderr: true
     timeout_sec: 5
