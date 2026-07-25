@@ -1,0 +1,563 @@
+project: c12
+display_name: C12
+norm_extra_rules:
+- CheckForbiddenSourceHeader
+points:
+- 5
+- 10
+- 15
+- 20
+- 25
+- 30
+- 35
+- 40
+- 50
+- 55
+- 60
+- 65
+- 70
+- 75
+- 80
+- 85
+- 90
+- 100
+exercises:
+# ex00 : ft_create_elem — malloc autorisé. On lie le harnais directement au
+# .c de l'élève (pas de ref_create_elem ici, c'est LUI qu'on teste).
+- name: ex00
+  dir: ex00
+  source_file: ft_create_elem.c
+  harness: harness/c12/ex00.c
+  allowed_functions:
+  - malloc
+  check_leaks: true
+  tests:
+  - name: cree_element
+    args:
+    - hello
+    stdin: ''
+    expected_stdout: |
+      OK
+    expected_exit_code: 0
+    timeout_sec: 5
+
+# À partir d'ex01, ft_create_elem de RÉFÉRENCE est fourni via harness_files :
+# le sujet dit « nous utiliserons notre ft_create_elem ». On teste chaque
+# fonction indépendamment d'un ft_create_elem élève éventuellement buggé.
+# ft_create_elem étant explicitement autorisé, sa présence ne déclenche pas
+# le contrôle de triche.
+- name: ex01
+  dir: ex01
+  source_file: ft_list_push_front.c
+  harness: harness/c12/ex01.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: push_front_inverse_ordre
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      c
+      b
+      a
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: un_seul
+    args:
+    - solo
+    stdin: ''
+    expected_stdout: |
+      solo
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex02
+  dir: ex02
+  source_file: ft_list_size.c
+  harness: harness/c12/ex02.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: trois_elements
+    args:
+    - x
+    - y
+    - z
+    stdin: ''
+    expected_stdout: '3'
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: liste_vide
+    args: []
+    stdin: ''
+    expected_stdout: '0'
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex03
+  dir: ex03
+  source_file: ft_list_last.c
+  harness: harness/c12/ex03.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: dernier_element
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      a
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex04
+  dir: ex04
+  source_file: ft_list_push_back.c
+  harness: harness/c12/ex04.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: push_back_meme_ordre
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: un_seul
+    args:
+    - solo
+    stdin: ''
+    expected_stdout: |
+      solo
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex05
+  dir: ex05
+  source_file: ft_list_push_strs.c
+  harness: harness/c12/ex05.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: premier_en_fin
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      c
+      b
+      a
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex06
+  dir: ex06
+  source_file: ft_list_clear.c
+  harness: harness/c12/ex06.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - free
+  check_leaks: true
+  tests:
+  - name: clear_sans_fuite
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      OK
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex07
+  dir: ex07
+  source_file: ft_list_at.c
+  harness: harness/c12/ex07.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: index_valide
+    args:
+    - '1'
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      b
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: index_hors_limites
+    args:
+    - '5'
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      (null)
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: premier_element
+    args:
+    - '0'
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      a
+    expected_exit_code: 0
+    timeout_sec: 5
+
+# ex08 : le sujet impose SON PROPRE ft_list.h. On fournit ref_list.h renommé
+# en ft_list.h, et le .c de l'élève ne rend PAS ft_list.h pour cet exercice.
+- name: ex08
+  dir: ex08
+  source_file: ft_list_reverse.c
+  harness: harness/c12/ex08.c
+  harness_files:
+  - harness/c12/ft_list.h
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: reverse_inverse
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      c
+      b
+      a
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: un_seul
+    args:
+    - solo
+    stdin: ''
+    expected_stdout: |
+      solo
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex09
+  dir: ex09
+  source_file: ft_list_foreach.c
+  harness: harness/c12/ex09.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: applique_dans_ordre
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex10
+  dir: ex10
+  source_file: ft_list_foreach_if.c
+  harness: harness/c12/ex10.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: applique_si_egal
+    args:
+    - b
+    - a
+    - b
+    - c
+    - b
+    stdin: ''
+    expected_stdout: |
+      b
+      b
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: aucun_match
+    args:
+    - z
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: ''
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex11
+  dir: ex11
+  source_file: ft_list_find.c
+  harness: harness/c12/ex11.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: trouve
+    args:
+    - b
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      b
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: absent
+    args:
+    - z
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      (null)
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex12
+  dir: ex12
+  source_file: ft_list_remove_if.c
+  harness: harness/c12/ex12.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - free
+  check_leaks: true
+  tests:
+  - name: retire_toutes_occurrences
+    args:
+    - b
+    - a
+    - b
+    - c
+    - b
+    stdin: ''
+    expected_stdout: |
+      a
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: retire_en_tete
+    args:
+    - a
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      b
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex13
+  dir: ex13
+  source_file: ft_list_merge.c
+  harness: harness/c12/ex13.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: concatene_l2_apres_l1
+    args:
+    - a
+    - b
+    - --
+    - c
+    - d
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+      d
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: l1_vide
+    args:
+    - --
+    - c
+    - d
+    stdin: ''
+    expected_stdout: |
+      c
+      d
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex14
+  dir: ex14
+  source_file: ft_list_sort.c
+  harness: harness/c12/ex14.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: tri_croissant
+    args:
+    - c
+    - a
+    - b
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: deja_trie
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex15
+  dir: ex15
+  source_file: ft_list_reverse_fun.c
+  harness: harness/c12/ex15.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: reverse_data
+    args:
+    - a
+    - b
+    - c
+    stdin: ''
+    expected_stdout: |
+      c
+      b
+      a
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex16
+  dir: ex16
+  source_file: ft_sorted_list_insert.c
+  harness: harness/c12/ex16.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions:
+  - ft_create_elem
+  - malloc
+  tests:
+  - name: insertion_triee
+    args:
+    - c
+    - a
+    - b
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: mots
+    args:
+    - banane
+    - abricot
+    - zebre
+    stdin: ''
+    expected_stdout: |
+      abricot
+      banane
+      zebre
+    expected_exit_code: 0
+    timeout_sec: 5
+
+- name: ex17
+  dir: ex17
+  source_file: ft_sorted_list_merge.c
+  harness: harness/c12/ex17.c
+  harness_files:
+  - harness/c12/ref_create_elem.c
+  allowed_functions: []
+  tests:
+  - name: fusion_triee
+    args:
+    - a
+    - c
+    - --
+    - b
+    - d
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+      d
+    expected_exit_code: 0
+    timeout_sec: 5
+  - name: intercalation
+    args:
+    - a
+    - b
+    - e
+    - --
+    - c
+    - d
+    - f
+    stdin: ''
+    expected_stdout: |
+      a
+      b
+      c
+      d
+      e
+      f
+    expected_exit_code: 0
+    timeout_sec: 5
