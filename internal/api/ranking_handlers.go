@@ -190,10 +190,11 @@ func (h *handlers) rankingPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // rankingFragment (GET /ui/classement) renvoie le fragment htmx d'un
-// classement de la piscine en cours :
+// classement de la piscine servie :
 // ?tab=score|projects|exam|progress[&exam=00][&coalition=Nom].
-// La session est déduite de la date serveur ; hors saison, le classement
-// est indisponible.
+// La session vient de pool.Service.Session : celle forcée par la config si
+// elle existe, sinon celle déduite de la date serveur ; hors saison et sans
+// session forcée, le classement est indisponible.
 func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
@@ -234,7 +235,8 @@ func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 		"SnapshotCount": 0,
 	}
 
-	month, year, inSeason := pool.CurrentSession(time.Now())
+	now := time.Now()
+	month, year, inSeason := h.pool.Session(now)
 	if !inSeason {
 		data["State"] = string(pool.StateUnavailable)
 		data["SelfURL"] = "/ui/classement?" + self.Encode()
@@ -262,11 +264,19 @@ func (h *handlers) rankingFragment(w http.ResponseWriter, r *http.Request) {
 			}
 			data["ExamRows"], status = h.pool.Exam(month, yearStr, exam)
 			data["RefreshSec"] = int(h.pool.ExamRefresh(exam).Seconds())
-			data["ExamCountdown"] = buildExamCountdown(h.pool.AllExamWindows())
-			// « En cours » ne doit s'afficher que si l'exam est réellement dans
-			// sa fenêtre : un piscineux inscrit tôt est "in_progress" côté API
-			// bien avant le début.
-			data["ExamActive"] = h.pool.ExamActive(exam)
+			// Décompte et badge « En cours » : l'horaire des exams vient du
+			// campus autour de maintenant, pas de la session affichée. Quand
+			// on sert une piscine passée, il désignerait les exams de la
+			// piscine suivante — on ne l'affiche donc pas.
+			if h.pool.SessionIsCurrent(now) {
+				data["ExamCountdown"] = buildExamCountdown(h.pool.AllExamWindows())
+				// « En cours » ne doit s'afficher que si l'exam est réellement
+				// dans sa fenêtre : un piscineux inscrit tôt est "in_progress"
+				// côté API bien avant le début.
+				data["ExamActive"] = h.pool.ExamActive(exam)
+			} else {
+				data["ExamActive"] = false
+			}
 		case "progress":
 			// Prime le cache score (c'est lui qui alimente les relevés) et
 			// sert l'historique existant sans écran de chargement si possible.

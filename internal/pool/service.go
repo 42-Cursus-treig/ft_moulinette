@@ -134,6 +134,13 @@ type Service struct {
 	cachePath  string
 	history    *historyStore
 
+	// Session forcée : quand elle est posée, elle court-circuite la déduction
+	// par l'horloge (voir Session). Écrite une seule fois au démarrage, par
+	// ForceSession, avant StartRefreshLoop et avant que le serveur HTTP
+	// n'accepte la moindre requête — donc lue sans verrou par la suite.
+	forceMonth string
+	forceYear  int
+
 	mu         sync.Mutex
 	campusID   int
 	coalitions []coalitionJSON
@@ -162,8 +169,20 @@ func NewService(clientID, clientSecret, campusName, cachePath, historyPath strin
 	return s
 }
 
+// poolMonths liste les mois où une piscine peut avoir lieu, avec l'orthographe
+// exacte que l'API 42 utilise dans le champ pool_month des users.
+var poolMonths = map[string]bool{
+	"july":      true,
+	"august":    true,
+	"september": true,
+}
+
 // CurrentSession renvoie la piscine en cours (les piscines ont lieu en
 // juillet, août ou septembre). ok=false hors saison.
+//
+// Attention : cette fonction ne connaît que l'horloge. Le reste du serveur
+// doit passer par Service.Session, qui tient compte d'une éventuelle session
+// forcée.
 func CurrentSession(now time.Time) (month string, year int, ok bool) {
 	switch now.Month() {
 	case time.July:
@@ -175,6 +194,49 @@ func CurrentSession(now time.Time) (month string, year int, ok bool) {
 	default:
 		return "", 0, false
 	}
+}
+
+// ForceSession fige la session servie par le service, quelle que soit la date
+// du serveur : c'est ce qui permet de continuer à afficher la piscine de
+// juillet une fois août commencé. month doit valoir "july", "august" ou
+// "september" (l'orthographe de pool_month côté API 42).
+//
+// À appeler au démarrage, après NewService et avant StartRefreshLoop : le
+// champ est ensuite lu sans verrou depuis les handlers et la boucle de fond.
+func (s *Service) ForceSession(month string, year int) error {
+	month = strings.ToLower(strings.TrimSpace(month))
+	if !poolMonths[month] {
+		return fmt.Errorf("mois de piscine invalide : %q (attendu july, august ou september)", month)
+	}
+	if year < 2000 || year > 2100 {
+		return fmt.Errorf("année de piscine invalide : %d", year)
+	}
+	s.forceMonth, s.forceYear = month, year
+	return nil
+}
+
+// Session renvoie la session à servir : celle forcée par ForceSession si elle
+// existe, sinon celle déduite de l'horloge. C'est le point d'entrée unique —
+// données et affichage doivent l'appeler tous les deux, sinon la page peut
+// annoncer une session pendant que le service en charge une autre.
+//
+// ok vaut toujours true quand une session est forcée : « hors saison » n'a
+// plus de sens si l'exploitant a explicitement désigné une piscine.
+func (s *Service) Session(now time.Time) (month string, year int, ok bool) {
+	if s.forceMonth != "" && s.forceYear != 0 {
+		return s.forceMonth, s.forceYear, true
+	}
+	return CurrentSession(now)
+}
+
+// SessionIsCurrent indique si la session servie est bien celle de l'horloge.
+// Elle est fausse quand un override pointe une piscine passée — cas où les
+// données campus non liées à la session (l'horaire des exams, borné autour de
+// maintenant) ne concernent plus ce qu'on affiche.
+func (s *Service) SessionIsCurrent(now time.Time) bool {
+	liveMonth, liveYear, liveOK := CurrentSession(now)
+	month, year, ok := s.Session(now)
+	return liveOK && ok && month == liveMonth && year == liveYear
 }
 
 // poolRefreshTick est le pas de la boucle de rafraîchissement serveur. Il est
@@ -193,7 +255,7 @@ const poolRefreshTick = 2 * time.Minute
 func (s *Service) StartRefreshLoop() {
 	go func() {
 		for {
-			if month, year, ok := CurrentSession(time.Now()); ok {
+			if month, year, ok := s.Session(time.Now()); ok {
 				y := strconv.Itoa(year)
 				s.Score(month, y)
 				s.Projects(month, y)
@@ -391,6 +453,10 @@ type ExamWindowInfo struct {
 // dans l'ordre chronologique des exams (00, 01, 02, final). Résout (et
 // rafraîchit en arrière-plan) le cache d'horaire ; renvoie nil tant qu'il
 // n'est pas prêt.
+//
+// Ces fenêtres sont celles du campus autour de maintenant, pas celles d'une
+// session donnée : elles n'ont de sens que si la session servie est la session
+// courante (voir SessionIsCurrent).
 func (s *Service) AllExamWindows() []ExamWindowInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -157,6 +158,26 @@ func main() {
 		poolHistoryPath = "data/pool_history.json"
 	}
 	poolService := pool.NewService(clientID, clientSecret, campusName, poolCachePath, poolHistoryPath)
+
+	// Session de piscine forcée : sans ces variables, la session affichée est
+	// déduite de la date du serveur et bascule donc toute seule le 1er du mois.
+	// Les poser (ex. july / 2026) fige la piscine servie — utile pour continuer
+	// à consulter la session précédente une fois la suivante commencée. Vider
+	// les deux variables et redémarrer restaure le comportement automatique.
+	// À faire avant StartRefreshLoop : la boucle de fond lit la session.
+	if monthEnv, yearEnv := os.Getenv("FT_MOULINETTE_POOL_MONTH"), os.Getenv("FT_MOULINETTE_POOL_YEAR"); monthEnv != "" || yearEnv != "" {
+		poolYear, err := strconv.Atoi(strings.TrimSpace(yearEnv))
+		if err != nil {
+			log.Fatalf("FT_MOULINETTE_POOL_YEAR invalide (%q) : les deux variables "+
+				"FT_MOULINETTE_POOL_MONTH et FT_MOULINETTE_POOL_YEAR doivent être "+
+				"renseignées ensemble", yearEnv)
+		}
+		if err := poolService.ForceSession(monthEnv, poolYear); err != nil {
+			log.Fatal("session de piscine forcée : ", err)
+		}
+		log.Printf("session de piscine forcée sur %s %d (FT_MOULINETTE_POOL_MONTH/_YEAR)", monthEnv, poolYear)
+	}
+
 	// Rafraîchit Score/Projets côté serveur en continu, sinon les classements
 	// ne se mettent à jour que quand un navigateur a la page ouverte.
 	poolService.StartRefreshLoop()
