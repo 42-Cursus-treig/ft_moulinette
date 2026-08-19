@@ -18,6 +18,7 @@
     </svg>
   </a>
   {{end}}
+
   {{if and .NavMoulinette (ne .Page "moulinette")}}
   <a href="/" class="theme-toggle" aria-label="Moulinette" title="Moulinette">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -26,6 +27,7 @@
     </svg>
   </a>
   {{end}}
+
   {{if and .NavClassement (ne .Page "classement")}}
   <a href="/classement" class="theme-toggle" aria-label="Classement" title="Classement">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -38,6 +40,7 @@
     </svg>
   </a>
   {{end}}
+
   {{if and .NavHistory (ne .Page "history")}}
   <a href="/history" class="theme-toggle" aria-label="Historique" title="Historique">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -46,7 +49,9 @@
     </svg>
   </a>
   {{end}}
+
   <span class="user-badge">{{.User.Login}}</span>
+
   <form method="post" action="/auth/logout">
     <button type="submit" class="theme-toggle" title="Se déconnecter" aria-label="Se déconnecter">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -56,43 +61,91 @@
       </svg>
     </button>
   </form>
+
   <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
     <img id="theme-icon" src="/static/img/moon.svg" alt="" width="20" height="20">
   </button>
 </div>
 {{end}}
 
-{{/* topnav — barre de navigation globale, identique à celle de ft_intra. Ici
-   Moulinette/Classement/Historique sont internes (relatifs) et Dashboard/Agenda/
-   Holy Graph pointent vers les autres services du split (absolus). */}}
 {{define "topnav"}}
 <nav class="topnav" aria-label="Navigation principale">
   <div class="topnav-inner">
     <a class="topnav-brand" href="https://ft-moulinette.fr/">ft<span>_</span>moulinette</a>
 
     <button type="button" class="topnav-burger" id="topnav-burger" aria-label="Menu" aria-expanded="false">
-      <span></span><span></span><span></span>
+      <span></span>
+      <span></span>
+      <span></span>
     </button>
 
     <div class="topnav-links" id="topnav-links">
-      <a href="https://ft-moulinette.fr/" class="topnav-link ext">Dashboard <span class="ext-arrow">↗</span></a>
-      <a href="https://agenda.ft-moulinette.fr/" class="topnav-link ext">Agenda <span class="ext-arrow">↗</span></a>
-      {{if .NavMoulinette}}<a href="/" class="topnav-link{{if eq .Page "moulinette"}} active{{end}}">Moulinette</a>{{end}}
-      <a href="/classement" class="topnav-link{{if eq .Page "classement"}} active{{end}}">Classement</a>
-      {{if .NavHistory}}<a href="/history" class="topnav-link{{if eq .Page "history"}} active{{end}}">Historique</a>{{end}}
-      <a href="https://holy-graph.ft-moulinette.fr/" class="topnav-link ext">Holy Graph <span class="ext-arrow">↗</span></a>
+      <a href="https://ft-moulinette.fr/" class="topnav-link ext">
+        Dashboard <span class="ext-arrow">↗</span>
+      </a>
+
+      <a href="https://agenda.ft-moulinette.fr/" class="topnav-link ext">
+        Agenda <span class="ext-arrow">↗</span>
+      </a>
+
+      <a href="https://42-cursus-treig.github.io/ft-holy/" class="topnav-link ext">
+        Holy Graph <span class="ext-arrow">↗</span>
+      </a>
+
+      {{if .NavMoulinette}}
+      <a href="/" class="topnav-link{{if eq .Page "moulinette"}} active{{end}}">
+        Moulinette
+      </a>
+      {{end}}
+
+      <a href="/classement" class="topnav-link{{if eq .Page "classement"}} active{{end}}">
+        Classement
+      </a>
     </div>
 
     <div class="topnav-actions">
+
+      {{if .NavHistory}}
+      <a
+        href="/history"
+        class="theme-toggle{{if eq .Page "history"}} active{{end}}"
+        title="Historique"
+        aria-label="Historique"
+        {{if eq .Page "history"}}aria-current="page"{{end}}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path>
+          <path d="M12 7v5l3 3"></path>
+        </svg>
+      </a>
+      {{end}}
+
       <span class="user-badge">{{.User.Login}}</span>
+
       {{if .IsAdmin}}
-      <a class="theme-toggle{{if eq .Page "admin"}} active{{end}}" href="/admin" title="Administration" aria-label="Administration"{{if eq .Page "admin"}} aria-current="page"{{end}}>
+      <a
+        class="theme-toggle{{if eq .Page "admin"}} active{{end}}"
+        href="/admin"
+        title="Administration"
+        aria-label="Administration"
+        {{if eq .Page "admin"}}aria-current="page"{{end}}
+      >
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"></circle>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
       </a>
       {{end}}
+
       <form method="post" action="/auth/logout">
         <button type="submit" class="theme-toggle" title="Se déconnecter" aria-label="Se déconnecter">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -102,17 +155,21 @@
           </svg>
         </button>
       </form>
+
       <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Changer de thème">
         <img id="theme-icon" src="/static/img/moon.svg" alt="" width="20" height="20">
       </button>
     </div>
   </div>
 </nav>
+
 <script>
   (function () {
     var b = document.getElementById('topnav-burger');
     var l = document.getElementById('topnav-links');
+
     if (!b || !l) return;
+
     b.addEventListener('click', function () {
       var open = l.classList.toggle('open');
       b.setAttribute('aria-expanded', open ? 'true' : 'false');
