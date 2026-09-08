@@ -540,7 +540,7 @@ func compile(dir string, compileOnly bool, sourceFiles ...string) (binPath strin
 		"--read-only",
 		"--tmpfs", "/build:rw,exec,size=64m,uid=1000,gid=1000",
 		"-v", fmt.Sprintf("%s:/work:ro", dir),
-		"-w", "/work",
+		"-w", "/build",
 		sandboxImage,
 	}
 
