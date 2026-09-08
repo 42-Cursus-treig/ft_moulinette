@@ -538,17 +538,22 @@ func compile(dir string, compileOnly bool, sourceFiles ...string) (binPath strin
 		"--memory", "128m",
 		"--cpus", "0.5",
 		"--read-only",
-		"-v", fmt.Sprintf("%s:/work", dir),
+		"--tmpfs", "/build:rw,exec,size=64m,uid=1000,gid=1000",
+		"-v", fmt.Sprintf("%s:/work:ro", dir),
 		"-w", "/work",
 		sandboxImage,
+	}
+
+	for i, f := range sourceFiles {
+		sourceFiles[i] = filepath.Join("/work", f)
 	}
 
 	var gccArgs []string
 	if compileOnly {
 		// -c : compilation seule, pas de link. On produit un .o jetable.
-		gccArgs = append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-c", "-o", "_compile.o"}, sourceFiles...)
+		gccArgs = append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-I/work", "-c", "-o", "/build/_compile.o"}, sourceFiles...)
 	} else {
-		gccArgs = append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-o", "a.out"}, sourceFiles...)
+		gccArgs = append([]string{"gcc", "-Wall", "-Wextra", "-Werror", "-I/work", "-o", "/build/a.out"}, sourceFiles...)
 	}
 	args = append(args, gccArgs...)
 
@@ -559,7 +564,7 @@ func compile(dir string, compileOnly bool, sourceFiles ...string) (binPath strin
 	if compileOnly {
 		return "", out, nil // pas de binaire à exécuter
 	}
-	return filepath.Join(dir, "a.out"), out, nil
+	return "/build/a.out", out, nil
 }
 
 func runTest(binPath string, tc testdef.TestCase, checkLeaks bool) models.TestResult {
