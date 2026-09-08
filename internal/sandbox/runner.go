@@ -552,9 +552,9 @@ func compile(dir string, compileOnly bool, sourceFiles ...string) (binPath strin
 	}
 	args = append(args, gccArgs...)
 
-	out, _, _, runErr := runDocker(args, 15*time.Second, nil)
+	out, errOut, _, runErr := runDocker(args, 15*time.Second, nil)
 	if runErr != nil {
-		return "", out, runErr
+		return "", strings.TrimSpace(out + "\n" + errOut), runErr
 	}
 	if compileOnly {
 		return "", out, nil // pas de binaire à exécuter
